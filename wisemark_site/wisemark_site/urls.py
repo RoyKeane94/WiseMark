@@ -1,24 +1,27 @@
 """
 URL configuration for wisemark_site project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import path, include
+def serve_spa(request, path=''):
+    """Serve the frontend SPA (landing page, app) for / and client-side routes."""
+    index_path = settings.BASE_DIR / 'static' / 'frontend' / 'index.html'
+    if not index_path.exists():
+        return HttpResponse(
+            '<p>Frontend not built. Run <code>cd frontend && npm run build</code> and copy <code>dist/</code> to <code>wisemark_site/static/frontend/</code>.</p>',
+            content_type='text/html',
+            status=503,
+        )
+    with open(index_path, encoding='utf-8') as f:
+        return HttpResponse(f.read(), content_type='text/html')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('documents.urls')),
+    path('', serve_spa),
+    path('<path:path>', serve_spa),
 ]

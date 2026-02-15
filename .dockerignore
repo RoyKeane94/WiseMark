@@ -1,5 +1,4 @@
-# Backend image only needs wisemark_site
-frontend
+# Backend image; frontend is used in build stage then only dist is copied
 .git
 .env
 *.md

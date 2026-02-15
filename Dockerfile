@@ -1,5 +1,14 @@
-# Backend Dockerfile (use when project root = repo root)
-# Railway uses this if Root Directory is unset or repo root.
+# Backend + frontend (use when project root = repo root)
+# Stage 1: build frontend
+FROM node:20-alpine AS frontend
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci 2>/dev/null || npm install
+COPY frontend/ .
+ENV NODE_ENV=production
+RUN npm run build
+
+# Stage 2: Django serves API + SPA
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
@@ -7,12 +16,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Copy and install backend deps
 COPY wisemark_site/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend app
 COPY wisemark_site/ .
+COPY --from=frontend /app/dist ./static/frontend
 
 RUN chmod +x docker-entrypoint.sh
 
