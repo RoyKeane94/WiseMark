@@ -2,11 +2,15 @@
 set -e
 cd "$(dirname "$0")"
 
-# Use Python from PATH or common install locations (Railpack/mise may not be on PATH in start)
-export PATH="/usr/local/bin:/root/.local/bin:$PATH"
+# Railpack installs Python via mise but doesn't activate it for custom start scripts
+if [ -x "/usr/local/bin/mise" ]; then
+  eval "$(/usr/local/bin/mise activate bash)" 2>/dev/null || true
+fi
+export PATH="/mise/shims:/root/.local/share/mise/shims:/usr/local/bin:/root/.local/bin:$PATH"
+
 PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
 if [ -z "$PYTHON" ]; then
-  for p in /root/.local/share/mise/installs/python/*/bin/python3 /opt/python/*/bin/python3; do
+  for p in /mise/installs/python/*/bin/python3 /root/.local/share/mise/installs/python/*/bin/python3 /opt/python/*/bin/python3; do
     [ -x "$p" ] && PYTHON=$p && break
   done
 fi
