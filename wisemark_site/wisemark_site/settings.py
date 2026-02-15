@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-uvf==p+scced9e!5nl9l&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,https://wisemark-production.up.railway.app/').split(',')
 
 
 # Application definition
