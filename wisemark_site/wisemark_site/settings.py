@@ -10,17 +10,27 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env from project root (wisemark_site/)
+_env_path = BASE_DIR / '.env'
+if _env_path.exists():
+    with open(_env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, _, value = line.partition('=')
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-uvf==p+scced9e!5nl9l&^tb_pcmbl^$sax@xd2(u@@vptt8q='
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-uvf==p+scced9e!5nl9l&^tb_pcmbl^$sax@xd2(u@@vptt8q=')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
