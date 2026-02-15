@@ -1,0 +1,12 @@
+# Backend image only needs wisemark_site
+frontend
+.git
+.env
+*.md
+__pycache__
+*.pyc
+venv
+.venv
+*.sqlite3
+wisemark_site/staticfiles
+wisemark_site/.env
