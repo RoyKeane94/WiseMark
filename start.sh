@@ -4,7 +4,7 @@ cd "$(dirname "$0")/wisemark_site"
 
 # Install deps if not already (e.g. when Railpack doesn't detect Python due to monorepo)
 if ! python3 -c "import django" 2>/dev/null; then
-  pip install -r wisemark_site/requirements.txt
+  python3 -m pip install -r requirements.txt
 fi
 
 python3 manage.py migrate --noinput
