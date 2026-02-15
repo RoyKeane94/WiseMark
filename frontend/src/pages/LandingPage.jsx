@@ -68,7 +68,7 @@ export default function LandingPage() {
             desc: 'Notes and excerpts as structured Word docs or PDFs',
           },
           {
-            label: 'NDA compliant',
+            label: 'NDA & GDPR compliant',
             desc: 'Your PDFs never touch a server. Only your notes sync',
           },
         ].map(({ label, desc }) => (

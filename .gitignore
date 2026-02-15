@@ -1,1 +1,8 @@
 venv/
+.env
+*.sqlite3
+wisemark_site/staticfiles/
+__pycache__/
+*.pyc
+*.pyo
+.Python

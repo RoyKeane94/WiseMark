@@ -1,0 +1,10 @@
+# Railpack/Nixpacks: treat this as a Python app (Django backend).
+# Use when service root is the repo root (monorepo with frontend/).
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install -r wisemark_site/requirements.txt"]
+
+[start]
+cmd = "bash start.sh"

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "steps": {
+    "install": {
+      "commands": ["pip install -r wisemark_site/requirements.txt"]
+    }
+  },
+  "deploy": {
+    "startCommand": "bash start.sh"
+  }
+}
