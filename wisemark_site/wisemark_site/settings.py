@@ -128,7 +128,7 @@ if _db_host and _db_name and _db_user is not None:
             'CONN_MAX_AGE': 600,
             # Railway and most cloud Postgres require SSL
             'OPTIONS': {
-                'connect_timeout': 15,
+                'connect_timeout': 30,
                 'sslmode': 'require',
             },
         },
