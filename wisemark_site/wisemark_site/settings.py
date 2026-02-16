@@ -30,7 +30,7 @@ if _env_path.exists():
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-uvf==p+scced9e!5nl9l&^tb_pcmbl^$sax@xd2(u@@vptt8q=')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')

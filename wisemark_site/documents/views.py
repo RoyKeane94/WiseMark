@@ -107,12 +107,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = HighlightSerializer(highlights, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['patch'], url_path=r'highlights/(?P<highlight_pk>[^/.]+)')
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'highlights/(?P<highlight_pk>[^/.]+)')
     def update_highlight(self, request, pk=None, highlight_pk=None):
         doc = self.get_object()
         highlight = doc.highlights.filter(pk=highlight_pk).first()
         if not highlight:
             return Response({'detail': 'Highlight not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'DELETE':
+            highlight.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         note_content = request.data.get('note') if 'note' in request.data else request.data.get('comment')
         if note_content is not None:
             note_content = (note_content or '').strip()
