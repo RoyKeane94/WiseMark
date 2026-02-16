@@ -1,10 +1,17 @@
+import hashlib
+
+from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, Document, Highlight, Note
+from .models import Project, Document, Highlight, Note, StorageLocation
 from .serializers import ProjectSerializer, DocumentSerializer, HighlightSerializer
+
+
+def _compute_pdf_hash(file_bytes):
+    return hashlib.sha256(file_bytes).hexdigest()
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -31,9 +38,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         project_id = request.data.get('project')
-        pdf_hash = (request.data.get('pdf_hash') or '').strip()
-        filename = request.data.get('filename') or ''
-        file_size = request.data.get('file_size')
+        uploaded_file = request.FILES.get('file')
         if not project_id:
             return Response(
                 {'project': ['This field is required.']},
@@ -45,17 +50,43 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'project': ['Project not found.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not pdf_hash or not filename:
-            return Response(
-                {'detail': 'pdf_hash and filename are required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if file_size is None:
-            file_size = 0
-        try:
-            file_size = int(file_size)
-        except (TypeError, ValueError):
-            file_size = 0
+
+        if uploaded_file:
+            # Multipart upload: store PDF in backend (postgres or s3)
+            if not uploaded_file.name or not uploaded_file.name.lower().endswith('.pdf'):
+                return Response(
+                    {'detail': 'A PDF file is required.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            file_bytes = uploaded_file.read()
+            pdf_hash = _compute_pdf_hash(file_bytes)
+            filename = (request.data.get('filename') or uploaded_file.name).strip() or uploaded_file.name
+            if not filename.lower().endswith('.pdf'):
+                filename = f'{filename}.pdf'
+            file_size = len(file_bytes)
+            storage_location = StorageLocation.POSTGRES
+            pdf_file = file_bytes
+            s3_key = None
+        else:
+            # JSON-only (legacy): metadata only, no file stored on server
+            pdf_hash = (request.data.get('pdf_hash') or '').strip()
+            filename = (request.data.get('filename') or '').strip()
+            file_size = request.data.get('file_size')
+            if not pdf_hash or not filename:
+                return Response(
+                    {'detail': 'pdf_hash and filename are required when not uploading a file.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if file_size is None:
+                file_size = 0
+            try:
+                file_size = int(file_size)
+            except (TypeError, ValueError):
+                file_size = 0
+            storage_location = StorageLocation.POSTGRES
+            pdf_file = None
+            s3_key = None
+
         existing = Document.objects.filter(project=project, pdf_hash=pdf_hash).first()
         if existing:
             return Response(
@@ -63,11 +94,31 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         serializer = self.get_serializer(
-            data={'project': project_id, 'pdf_hash': pdf_hash, 'filename': filename, 'file_size': file_size}
+            data={
+                'project': project_id,
+                'pdf_hash': pdf_hash,
+                'filename': filename,
+                'file_size': file_size,
+                'storage_location': storage_location,
+                'pdf_file': pdf_file,
+                's3_key': s3_key,
+            }
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def pdf(self, request, pk=None):
+        """Return the stored PDF bytes (postgres or s3)."""
+        doc = self.get_object()
+        pdf_bytes = doc.get_pdf_bytes()
+        if not pdf_bytes:
+            return Response(
+                {'detail': 'PDF file is not stored on the server for this document.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return HttpResponse(pdf_bytes, content_type='application/pdf')
 
     @action(detail=True, methods=['get', 'post'], url_path='highlights')
     def highlights(self, request, pk=None):

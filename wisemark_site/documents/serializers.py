@@ -14,8 +14,16 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Document
-        fields = ['id', 'project', 'pdf_hash', 'filename', 'file_size', 'color_labels', 'created_at', 'updated_at']
+        fields = [
+            'id', 'project', 'pdf_hash', 'filename', 'file_size',
+            'storage_location', 'pdf_file', 's3_key',
+            'color_labels', 'created_at', 'updated_at',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'pdf_file': {'write_only': True},
+            's3_key': {'write_only': True},
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

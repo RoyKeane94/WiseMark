@@ -16,7 +16,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env from project root (wisemark_site/)
+# Load .env from project root (wisemark_site/) so DB_*, SECRET_KEY, etc. are set
 _env_path = BASE_DIR / '.env'
 if _env_path.exists():
     with open(_env_path) as f:
@@ -24,7 +24,9 @@ if _env_path.exists():
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 key, _, value = line.partition('=')
-                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+                k = key.strip()
+                v = value.strip().strip('"').strip("'")
+                os.environ[k] = v  # .env overrides so it always loads
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -106,13 +108,38 @@ WSGI_APPLICATION = 'wisemark_site.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+# If DB_HOST, DB_NAME, DB_USER are set in .env → use Postgres. Otherwise → db.sqlite3.
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+_db_host = os.environ.get('DB_HOST')
+_db_name = os.environ.get('DB_NAME')
+_db_user = os.environ.get('DB_USER')
+_db_password = os.environ.get('DB_PASSWORD')
+_db_port = os.environ.get('DB_PORT', '5432')
+
+if _db_host and _db_name and _db_user is not None:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': _db_name,
+            'USER': _db_user,
+            'PASSWORD': _db_password or '',
+            'HOST': _db_host,
+            'PORT': _db_port,
+            'CONN_MAX_AGE': 600,
+            # Railway and most cloud Postgres require SSL
+            'OPTIONS': {
+                'connect_timeout': 15,
+                'sslmode': 'require',
+            },
+        },
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        },
+    }
 
 
 # Password validation

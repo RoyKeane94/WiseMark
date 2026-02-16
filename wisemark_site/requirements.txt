@@ -4,3 +4,4 @@ djangorestframework>=3.14,<4
 django-cors-headers>=4.3,<5
 whitenoise>=6.6,<7
 gunicorn>=21.0,<23
+psycopg[binary]>=3.1,<4
