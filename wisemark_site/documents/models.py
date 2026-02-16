@@ -24,6 +24,18 @@ class Project(models.Model):
         ordering = ['-updated_at']
 
 
+class Color(models.Model):
+    """Global list of highlight colours. One row per colour (yellow, green, etc.)."""
+    key = models.CharField(max_length=20, unique=True)
+    default_name = models.CharField(max_length=255)
+
+    class Meta:
+        ordering = ['key']
+
+    def __str__(self):
+        return self.key
+
+
 class Document(models.Model):
     project = models.ForeignKey(
         Project,
@@ -48,17 +60,23 @@ class Document(models.Model):
         blank=True,
         help_text='Object key in S3 when storage_location is s3',
     )
-    color_labels = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text='Override topic names per color, e.g. {"orange": "Legal DD"}',
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-updated_at']
         unique_together = [('project', 'pdf_hash')]
+
+
+class DocumentColor(models.Model):
+    """Per-document custom label for a colour. No row = use Color.default_name. X in UI deletes this row."""
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='document_colors')
+    color = models.ForeignKey(Color, on_delete=models.CASCADE, related_name='document_colors')
+    custom_name = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        unique_together = [('document', 'color')]
+        ordering = ['color__key']
 
     def get_pdf_bytes(self):
         """Return PDF bytes from current storage. For postgres: from pdf_file; for s3: fetch from S3 (not implemented)."""
@@ -80,14 +98,11 @@ class Highlight(models.Model):
     position_data = models.JSONField(
         help_text='JSON containing selection range data for re-rendering',
     )
-    COLOR_CHOICES = [
-        ('yellow', 'Key Metrics'),
-        ('green', 'Competitive Advantages'),
-        ('blue', 'Management Questions'),
-        ('pink', 'Investment Risks'),
-        ('orange', 'Commercial DD'),
-    ]
-    color = models.CharField(max_length=10, choices=COLOR_CHOICES, default='yellow')
+    color = models.ForeignKey(
+        Color,
+        on_delete=models.PROTECT,
+        related_name='highlights',
+    )
     highlighted_text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

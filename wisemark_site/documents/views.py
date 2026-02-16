@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, Document, Highlight, Note, StorageLocation
+from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation
 from .serializers import ProjectSerializer, DocumentSerializer, HighlightSerializer
 
 
@@ -35,6 +35,21 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        # Sync DocumentColor: keys in payload stay (with optional custom_name), others removed
+        if 'color_labels' in self.request.data:
+            raw = self.request.data.get('color_labels')
+            if isinstance(raw, dict):
+                for color in Color.objects.all():
+                    if color.key in raw:
+                        custom_name = (raw.get(color.key) or '').strip() if isinstance(raw.get(color.key), str) else ''
+                        dc, _ = DocumentColor.objects.get_or_create(document=instance, color=color, defaults={'custom_name': ''})
+                        dc.custom_name = custom_name
+                        dc.save()
+                    else:
+                        DocumentColor.objects.filter(document=instance, color=color).delete()
 
     def create(self, request, *args, **kwargs):
         project_id = request.data.get('project')
@@ -126,9 +141,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if request.method == 'POST':
             page_number = request.data.get('page_number')
             position_data = request.data.get('position_data') or {}
-            color = (request.data.get('color') or 'yellow').strip()
-            if color not in dict(Highlight.COLOR_CHOICES):
-                color = 'yellow'
+            color_key = (request.data.get('color') or 'yellow').strip()
+            color = Color.objects.filter(key=color_key).first() or Color.objects.filter(key='yellow').first()
             highlighted_text = (request.data.get('highlighted_text') or '').strip()
             if page_number is None:
                 return Response(
