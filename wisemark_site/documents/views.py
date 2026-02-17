@@ -135,6 +135,29 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         return HttpResponse(pdf_bytes, content_type='application/pdf')
 
+    @action(detail=True, methods=['post'], url_path='upload_pdf')
+    def upload_pdf(self, request, pk=None):
+        """Store PDF bytes for a document that was created without them (e.g. metadata-only or legacy). File must match doc.pdf_hash."""
+        doc = self.get_object()
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file or not (uploaded_file.name or '').lower().endswith('.pdf'):
+            return Response(
+                {'detail': 'A PDF file is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        file_bytes = uploaded_file.read()
+        computed_hash = _compute_pdf_hash(file_bytes)
+        if computed_hash != doc.pdf_hash:
+            return Response(
+                {'detail': 'This file does not match the original document.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        doc.pdf_file = file_bytes
+        doc.storage_location = StorageLocation.POSTGRES
+        doc.file_size = len(file_bytes)
+        doc.save(update_fields=['pdf_file', 'storage_location', 'file_size'])
+        return Response(status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get', 'post'], url_path='highlights')
     def highlights(self, request, pk=None):
         doc = self.get_object()

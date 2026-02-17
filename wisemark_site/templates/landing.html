@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiseMark — Deal annotations for private equity</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --slate-950: #0f172a;
+    --slate-900: #1e293b;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748b;
+    --slate-400: #94a3b8;
+    --slate-300: #cbd5e1;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50: #f8fafc;
+    --white: #ffffff;
+    --yellow: #fbbf24;
+    --green: #34d399;
+    --blue: #60a5fa;
+    --pink: #f472b6;
+    --orange: #fb923c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    color: var(--slate-900);
+    background: var(--white);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 1rem 2.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--slate-200);
+  }
+
+  .nav-logo {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-weight: 600; font-size: 1.05rem; color: var(--slate-900);
+    text-decoration: none;
+  }
+
+  .nav-logo-icon {
+    width: 26px; height: 26px; border-radius: 5px;
+    background: var(--slate-700);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 0.7rem; font-weight: 600;
+  }
+
+  .nav-cta {
+    padding: 0.45rem 1.1rem;
+    background: var(--slate-900); color: white;
+    border: none; border-radius: 6px;
+    font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; text-decoration: none;
+    transition: background 0.2s;
+  }
+  .nav-cta:hover { background: var(--slate-700); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 8rem 2.5rem 6rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--slate-400);
+    margin-bottom: 1.5rem;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s;
+  }
+
+  .hero h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2.8rem, 6vw, 4.2rem);
+    line-height: 1.12;
+    font-weight: 400;
+    color: var(--slate-950);
+    margin-bottom: 1.75rem;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.35s;
+  }
+
+  .hero h1 em { font-style: italic; color: var(--slate-500); }
+
+  .hero-sub {
+    font-size: 1.15rem; line-height: 1.7;
+    color: var(--slate-600);
+    max-width: 540px;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.5s;
+  }
+
+  .hero-cta-row {
+    display: flex; align-items: center; gap: 1.5rem;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.65s;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.8rem 1.75rem;
+    background: var(--slate-900); color: white;
+    border: none; border-radius: 8px;
+    font-size: 0.95rem; font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; text-decoration: none;
+    transition: all 0.25s;
+  }
+  .btn-primary:hover {
+    background: var(--slate-700);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+  }
+  .btn-primary svg { transition: transform 0.2s; }
+  .btn-primary:hover svg { transform: translateX(3px); }
+
+  .hero-note {
+    font-size: 0.78rem; color: var(--slate-400);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* PROVOCATION */
+  .provocation {
+    padding: 6rem 2.5rem;
+    background: var(--slate-950);
+    position: relative; overflow: hidden;
+  }
+  .provocation::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 30% 50%, rgba(59,130,246,0.05), transparent);
+  }
+
+  .provocation-inner {
+    max-width: 720px; margin: 0 auto; position: relative; z-index: 1;
+  }
+
+  .provocation blockquote {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    line-height: 1.55;
+    color: var(--slate-400);
+    font-style: italic;
+    padding-left: 1.75rem;
+    border-left: 2px solid var(--slate-700);
+  }
+  .provocation blockquote strong {
+    color: var(--white); font-weight: 400;
+  }
+
+  /* DEMO */
+  .demo {
+    padding: 7rem 2.5rem;
+    max-width: 1060px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--slate-400);
+    margin-bottom: 1.25rem;
+  }
+
+  .demo h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+    line-height: 1.2; font-weight: 400;
+    color: var(--slate-950);
+    max-width: 520px;
+    margin-bottom: 1rem;
+  }
+
+  .demo > p.demo-lead {
+    font-size: 1rem; color: var(--slate-500);
+    max-width: 500px; line-height: 1.65;
+    margin-bottom: 3.5rem;
+  }
+
+  .demo-window {
+    background: var(--slate-50);
+    border: 1px solid var(--slate-200);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 8px 40px rgba(15,23,42,0.07);
+  }
+
+  .demo-titlebar {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: var(--white);
+    border-bottom: 1px solid var(--slate-200);
+  }
+  .demo-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .demo-dot.r { background: #ff5f57; }
+  .demo-dot.y { background: #febc2e; }
+  .demo-dot.g { background: #28c840; }
+  .demo-titlebar span {
+    margin-left: auto; font-size: 0.72rem;
+    color: var(--slate-400); font-family: 'JetBrains Mono', monospace;
+  }
+
+  .demo-body {
+    display: grid; grid-template-columns: 1fr 320px;
+    min-height: 400px;
+  }
+
+  .demo-pdf {
+    padding: 2.25rem; font-size: 0.84rem;
+    line-height: 1.85; color: var(--slate-700);
+    border-right: 1px solid var(--slate-200);
+    position: relative;
+  }
+  .demo-pdf .page-num {
+    position: absolute; bottom: 1.25rem; right: 1.5rem;
+    font-size: 0.68rem; color: var(--slate-400);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .hl-y { background: rgba(251,191,36,0.22); border-bottom: 2px solid rgba(251,191,36,0.55); padding: 0 2px; }
+  .hl-p { background: rgba(244,114,182,0.18); border-bottom: 2px solid rgba(244,114,182,0.45); padding: 0 2px; }
+  .hl-g { background: rgba(52,211,153,0.18); border-bottom: 2px solid rgba(52,211,153,0.45); padding: 0 2px; }
+  .hl-b { background: rgba(96,165,250,0.18); border-bottom: 2px solid rgba(96,165,250,0.45); padding: 0 2px; }
+
+  .demo-sidebar {
+    background: var(--white); padding: 1.25rem;
+  }
+  .sidebar-title {
+    font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.11em; color: var(--slate-400);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 1rem;
+  }
+
+  .ann {
+    padding: 0.85rem; border-radius: 7px;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--slate-100);
+  }
+  .ann-dot {
+    display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; margin-right: 0.35rem; vertical-align: middle;
+  }
+  .ann-label {
+    font-size: 0.68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--slate-500);
+  }
+  .ann-quote {
+    font-size: 0.78rem; color: var(--slate-600);
+    line-height: 1.5; margin-top: 0.4rem;
+    font-style: italic;
+    border-left: 2px solid var(--slate-200);
+    padding-left: 0.55rem;
+  }
+  .ann-comment {
+    font-size: 0.75rem; color: var(--slate-500);
+    line-height: 1.5; margin-top: 0.4rem;
+  }
+  .ann-page {
+    font-size: 0.62rem; color: var(--slate-400);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 0.4rem;
+  }
+
+  /* PIPELINE */
+  .pipeline {
+    padding: 6rem 2.5rem;
+    background: var(--slate-50);
+    border-top: 1px solid var(--slate-200);
+    border-bottom: 1px solid var(--slate-200);
+  }
+  .pipeline-inner { max-width: 900px; margin: 0 auto; }
+
+  .pipeline h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+    line-height: 1.2; font-weight: 400;
+    color: var(--slate-950);
+    margin-bottom: 3rem;
+  }
+
+  .stages {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--white);
+  }
+
+  .stg {
+    padding: 2.25rem;
+    position: relative;
+  }
+  .stg:not(:last-child) { border-right: 1px solid var(--slate-200); }
+
+  .stg-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--slate-400);
+    margin-bottom: 0.85rem;
+  }
+  .stg h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.45rem; font-weight: 400;
+    color: var(--slate-900); margin-bottom: 0.75rem;
+  }
+  .stg p {
+    font-size: 0.85rem; line-height: 1.6; color: var(--slate-500);
+  }
+  .stg-badge {
+    display: inline-block; margin-top: 1.25rem;
+    padding: 0.25rem 0.65rem; font-size: 0.62rem;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-radius: 100px;
+  }
+  .b-live { background: rgba(52,211,153,0.1); color: #059669; border: 1px solid rgba(52,211,153,0.25); }
+  .b-next { background: rgba(59,130,246,0.07); color: #3b82f6; border: 1px solid rgba(59,130,246,0.18); }
+  .b-future { background: rgba(148,163,184,0.08); color: var(--slate-500); border: 1px solid var(--slate-200); }
+
+  /* CTA */
+  .final-cta {
+    padding: 7rem 2.5rem;
+    text-align: center;
+  }
+  .final-cta h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    line-height: 1.2; font-weight: 400;
+    color: var(--slate-950);
+    max-width: 550px; margin: 0 auto 1rem;
+  }
+  .final-cta h2 em { font-style: italic; color: var(--slate-500); }
+  .final-cta p {
+    font-size: 1rem; color: var(--slate-500);
+    margin-bottom: 2.25rem; max-width: 440px;
+    margin-left: auto; margin-right: auto; line-height: 1.6;
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 2.5rem 2.5rem;
+    border-top: 1px solid var(--slate-200);
+    text-align: center;
+  }
+  footer p { font-size: 0.75rem; color: var(--slate-400); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in {
+    opacity: 0; transform: translateY(20px);
+    transition: all 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+  /* RESPONSIVE */
+  @media (max-width: 860px) {
+    .demo-body { grid-template-columns: 1fr; }
+    .demo-sidebar { border-top: 1px solid var(--slate-200); }
+    .demo-pdf { border-right: none; }
+    .stages { grid-template-columns: 1fr; }
+    .stg:not(:last-child) { border-right: none; border-bottom: 1px solid var(--slate-200); }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="nav-logo-icon">W</div>
+    WiseMark
+  </a>
+  <a href="#cta" class="nav-cta">Request access</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">Built for people who actually read the documents</div>
+  <h1>Your judgment is your edge. <em>Organise it.</em></h1>
+  <p class="hero-sub">
+    AI can summarise an IM and DD in 30 seconds. It can't tell you whether to invest £50&nbsp;million. WiseMark gives your deal team structured, accurate notes from every deal. Searchable, exportable, and ready for IC.
+  </p>
+  <div class="hero-cta-row">
+    <a href="#cta" class="btn-primary">
+      Get early access
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.5 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <span class="hero-note">Free during beta</span>
+  </div>
+</section>
+
+<!-- PROVOCATION -->
+<section class="provocation">
+  <div class="provocation-inner fade-in">
+    <blockquote>
+      AI is only as good as the notes you feed it, and <strong>right now, you're feeding it nothing.</strong>
+    </blockquote>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="demo">
+  <div class="section-label fade-in">How it works</div>
+  <h2 class="fade-in">Highlight a passage. Get a real note.</h2>
+  <p class="demo-lead fade-in">Select text, pick a subject, add your commentary. Export the lot as a summary you'd put in front of a partner.</p>
+  <div class="demo-window fade-in">
+    <div class="demo-titlebar">
+      <div class="demo-dot r"></div>
+      <div class="demo-dot y"></div>
+      <div class="demo-dot g"></div>
+      <span>Acme_Holdings_CIM_2026.pdf</span>
+    </div>
+    <div class="demo-body">
+      <div class="demo-pdf">
+        <p style="margin-bottom: 1.1rem; font-weight: 600; color: var(--slate-900);">3. Financial Overview</p>
+        <p style="margin-bottom: 0.9rem;">Acme Holdings generated revenues of <span class="hl-y">£142.3 million in FY2025, representing 18.2% year-on-year growth</span> driven primarily by expansion in the Northern European market. Gross margins remained stable at 43.1%, though <span class="hl-p">EBITDA margins contracted from 28.4% to 24.7% due to increased customer acquisition costs in Q3–Q4</span>, reflecting the Company's strategic decision to prioritise market share.</p>
+        <p style="margin-bottom: 0.9rem;">The Company's <span class="hl-g">proprietary logistics platform processes 2.1 million orders monthly with 99.7% on-time delivery</span>, a capability management believes represents a significant barrier to entry.</p>
+        <p><span class="hl-b">Management has indicated plans to pursue two bolt-on acquisitions in H1 2026</span>, targeting companies with complementary geographic coverage. Integration cost estimates have not yet been provided.</p>
+        <div class="page-num">Page 14 of 87</div>
+      </div>
+      <div class="demo-sidebar">
+        <div class="sidebar-title">Annotations — 4 notes</div>
+
+        <div class="ann">
+          <div><span class="ann-dot" style="background:var(--yellow)"></span><span class="ann-label">Key metric</span></div>
+          <div class="ann-quote">"£142.3m in FY2025, representing 18.2% YoY growth"</div>
+          <div class="ann-page">p. 14</div>
+        </div>
+
+        <div class="ann">
+          <div><span class="ann-dot" style="background:var(--pink)"></span><span class="ann-label">Investment risk</span></div>
+          <div class="ann-quote">"EBITDA margins contracted from 28.4% to 24.7%"</div>
+          <div class="ann-comment">370bps contraction — need CAC payback data. Temporary or structural?</div>
+          <div class="ann-page">p. 14</div>
+        </div>
+
+        <div class="ann">
+          <div><span class="ann-dot" style="background:var(--green)"></span><span class="ann-label">Competitive advantage</span></div>
+          <div class="ann-quote">"2.1m orders monthly with 99.7% on-time delivery"</div>
+          <div class="ann-page">p. 14</div>
+        </div>
+
+        <div class="ann">
+          <div><span class="ann-dot" style="background:var(--blue)"></span><span class="ann-label">Mgmt question</span></div>
+          <div class="ann-quote">"Plans to pursue two bolt-on acquisitions in H1 2026"</div>
+          <div class="ann-comment">No integration costs — flag for mgmt meeting.</div>
+          <div class="ann-page">p. 14</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PIPELINE -->
+<section class="pipeline">
+  <div class="pipeline-inner">
+    <div class="section-label fade-in">Where this is going</div>
+    <h2 class="fade-in">Capture. Organise. Interrogate.</h2>
+    <div class="stages fade-in">
+      <div class="stg">
+        <div class="stg-num">Stage 01</div>
+        <h3>Capture</h3>
+        <p>Structured annotations with exact quotes, page references, and your commentary. Five colours mapped to how you think.</p>
+        <span class="stg-badge b-live">Live now</span>
+      </div>
+      <div class="stg">
+        <div class="stg-num">Stage 02</div>
+        <h3>Organise</h3>
+        <p>Tag and search annotations across your entire deal library. Spot a pattern once, find it everywhere.</p>
+        <span class="stg-badge b-next">Coming next</span>
+      </div>
+      <div class="stg">
+        <div class="stg-num">Stage 03</div>
+        <h3>Interrogate</h3>
+        <p>Give your annotation library to AI and ask it questions only your own analysis can answer.</p>
+        <span class="stg-badge b-future">On the roadmap</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="final-cta" id="cta">
+  <h2 class="fade-in">Notes worth keeping. <em>Analysis worth building on.</em></h2>
+  <p class="fade-in">WiseMark is in private beta. Try it on your next deal review.</p>
+  <a href="/register" class="btn-primary fade-in" style="display:inline-flex;">
+    Request early access
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.5 8h9M8.5 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+</section>
+
+<footer>
+  <p>&copy; 2026 WiseMark</p>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
