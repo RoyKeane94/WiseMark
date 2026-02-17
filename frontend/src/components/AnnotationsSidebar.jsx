@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName } from '../lib/colors';
 import { text, border, bg } from '../lib/theme';
-import { FileText, Search } from 'lucide-react';
+import { FileText, Search, Trash2 } from 'lucide-react';
 
 export default function AnnotationsSidebar({
   highlights,
   colorLabels,
+  documentColorKeys,
   activeHighlightId,
   onScrollToPage,
   onHighlightClick,
@@ -14,11 +15,25 @@ export default function AnnotationsSidebar({
   onClearActive,
   documentId,
   onHighlightNoteUpdate,
+  onHighlightDelete,
+  openEditForHighlightId,
+  onClearOpenEditForHighlightId,
 }) {
+  const colorKeysForFilter = documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS;
   const [colorFilter, setColorFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
+
+  useEffect(() => {
+    if (openEditForHighlightId == null || !highlights?.length) return;
+    const h = highlights.find((x) => String(x.id) === String(openEditForHighlightId));
+    if (h) {
+      setEditingNoteId(h.id);
+      setEditingNoteValue(h.note?.content ?? '');
+    }
+    onClearOpenEditForHighlightId?.();
+  }, [openEditForHighlightId, highlights, onClearOpenEditForHighlightId]);
 
   const filtered = useMemo(() => {
     let list = highlights || [];
@@ -75,10 +90,10 @@ export default function AnnotationsSidebar({
           >
             All
           </button>
-          {HIGHLIGHT_COLOR_KEYS.map((key) => {
+          {colorKeysForFilter.map((key) => {
             const count = (highlights || []).filter((h) => h.color === key).length;
-            if (count === 0) return null;
             const def = HIGHLIGHT_COLORS[key];
+            if (!def) return null;
             return (
               <button
                 key={key}
@@ -134,15 +149,24 @@ export default function AnnotationsSidebar({
               const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
               return (
                 <li key={h.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className={`w-full text-left rounded-[10px] p-3 transition-all cursor-pointer border ${
                       isActive ? 'border-slate-300' : 'border-transparent hover:border-slate-200'
-                    } ${isActive ? (def.rgbaSoft ? '' : '') : 'hover:bg-slate-50'}`}
-                    style={isActive && def.rgbaSoft ? { backgroundColor: def.rgbaSoft } : undefined}
+                    } hover:bg-slate-50`}
                     onClick={() => {
                       onHighlightClick?.(h.id);
                       onScrollToPage?.(h.page_number);
+                    }}
+                    onKeyDown={(e) => {
+                      const isEditable = e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.isContentEditable;
+                      if (isEditable) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onHighlightClick?.(h.id);
+                        onScrollToPage?.(h.page_number);
+                      }
                     }}
                     onMouseEnter={() => onHighlightHover?.(h.id)}
                     onMouseLeave={onHighlightHoverEnd}
@@ -220,8 +244,22 @@ export default function AnnotationsSidebar({
                         {getColorDisplayName(h.color, colorLabels)}
                       </span>
                       <span className="text-[10px] text-slate-400">p.{h.page_number}</span>
+                      {documentId && onHighlightDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onHighlightDelete(h.id);
+                          }}
+                          className="ml-auto p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Delete highlight"
+                          aria-label="Delete highlight"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 </li>
               );
             })}

@@ -123,13 +123,13 @@ export default function ProjectDetailPage() {
     setUploadError('');
     setUploading(true);
     try {
+      const formData = new FormData();
+      formData.append('project', String(pid));
+      formData.append('filename', filename);
+      formData.append('file', new Blob([data.arrayBuffer]), filename);
+      await documentsAPI.createWithFile(formData);
+      // Cache in IndexedDB so viewer can use it without re-fetching
       await storePDF(data.hash, filename, data.size, data.arrayBuffer);
-      await documentsAPI.create({
-        project: Number(pid),
-        pdf_hash: data.hash,
-        filename,
-        file_size: data.size,
-      });
       queryClient.invalidateQueries({ queryKey: ['documents', pid] });
       setPendingFile(null);
       setPendingFilename('');

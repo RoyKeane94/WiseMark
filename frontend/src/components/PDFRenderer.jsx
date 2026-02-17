@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { HIGHLIGHT_COLORS } from '../lib/colors';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -193,6 +193,10 @@ export default function PDFRenderer({
   selectionForPicker = null,
   onSelectionComplete,
   onNumPages,
+  onHighlightHover,
+  onHighlightHoverEnd,
+  onHighlightEdit,
+  onHighlightDelete,
 }) {
   const [pdf, setPdf] = useState(null);
   const [numPages, setNumPages] = useState(0);
@@ -242,6 +246,10 @@ export default function PDFRenderer({
           activeHighlightId={activeHighlightId}
           selectionForPicker={selectionForPicker}
           onSelectionComplete={onSelectionComplete}
+          onHighlightHover={onHighlightHover}
+          onHighlightHoverEnd={onHighlightHoverEnd}
+          onHighlightEdit={onHighlightEdit}
+          onHighlightDelete={onHighlightDelete}
         />
       ))}
     </div>
@@ -257,6 +265,10 @@ function PDFPage({
   activeHighlightId,
   selectionForPicker,
   onSelectionComplete,
+  onHighlightHover,
+  onHighlightHoverEnd,
+  onHighlightEdit,
+  onHighlightDelete,
 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -268,6 +280,32 @@ function PDFPage({
   const [selectionEnd, setSelectionEnd] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const selectionForPickerPrevRef = useRef(null);
+  const hoverLeaveTimeoutRef = useRef(null);
+
+  const handleHighlightLeave = useCallback(() => {
+    if (hoverLeaveTimeoutRef.current) clearTimeout(hoverLeaveTimeoutRef.current);
+    hoverLeaveTimeoutRef.current = setTimeout(() => {
+      onHighlightHoverEnd?.();
+      hoverLeaveTimeoutRef.current = null;
+    }, 1000);
+  }, [onHighlightHoverEnd]);
+
+  const handleHighlightEnter = useCallback(
+    (highlightId) => {
+      if (hoverLeaveTimeoutRef.current) {
+        clearTimeout(hoverLeaveTimeoutRef.current);
+        hoverLeaveTimeoutRef.current = null;
+      }
+      onHighlightHover?.(highlightId);
+    },
+    [onHighlightHover]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimeoutRef.current) clearTimeout(hoverLeaveTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -430,7 +468,8 @@ function PDFPage({
       ref={containerRef}
       data-page={pageNumber}
       className="relative shadow-lg bg-white overflow-hidden select-none"
-      style={{ width: dimensions.width || 0, height: dimensions.height || 0, cursor: isDragging ? 'text' : 'default' }}
+      style={{ width: dimensions.width || 0, height: dimensions.height || 0, cursor: 'text' }}
+      title="Drag to highlight text"
     >
       <canvas ref={canvasRef} className="block w-full h-full" style={{ display: 'block' }} />
 
@@ -443,20 +482,87 @@ function PDFPage({
           const isHovered = hoveredHighlightId != null && String(h.id) === String(hoveredHighlightId);
           const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
           const bg = isHovered || isActive ? (color.rgbaHover ?? color.rgba) : (color.rgbaSoft ?? color.rgba);
-          return rects.map((r, i) => (
+          const hasActions = onHighlightEdit || onHighlightDelete;
+          let bbox = null;
+          if (rects.length > 0) {
+            const left = Math.min(...rects.map((r) => r.x)) * scale;
+            const top = Math.min(...rects.map((r) => r.y)) * scale;
+            const right = Math.max(...rects.map((r) => (r.x || 0) + (r.width || 0))) * scale;
+            const bottom = Math.max(...rects.map((r) => (r.y || 0) + (r.height || 4))) * scale;
+            bbox = { left, top, width: right - left, height: bottom - top };
+          }
+          if (!bbox) return null;
+          return (
             <div
-              key={`${h.id}-${i}`}
-              className="absolute rounded-sm transition-colors duration-150"
+              key={h.id}
+              className="absolute rounded-sm transition-colors duration-150 group"
               style={{
-                left: r.x * scale,
-                top: r.y * scale,
-                width: Math.max(0, (r.width || 0) * scale),
-                height: Math.max(4, (r.height || 0) * scale),
-                backgroundColor: bg,
-                pointerEvents: 'none',
+                left: bbox.left,
+                top: bbox.top,
+                width: bbox.width,
+                height: bbox.height,
+                pointerEvents: 'auto',
               }}
-            />
-          ));
+              onMouseEnter={() => handleHighlightEnter(h.id)}
+              onMouseLeave={handleHighlightLeave}
+            >
+              {rects.map((r, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-sm transition-colors duration-150"
+                  style={{
+                    left: (r.x || 0) * scale - bbox.left,
+                    top: (r.y || 0) * scale - bbox.top,
+                    width: Math.max(0, (r.width || 0) * scale),
+                    height: Math.max(4, (r.height || 0) * scale),
+                    backgroundColor: bg,
+                    pointerEvents: 'none',
+                  }}
+                />
+              ))}
+              {hasActions && isHovered && bbox && (
+                <div
+                  className="absolute flex items-center gap-0.5 rounded-md border border-slate-200 bg-white shadow-sm z-10"
+                  style={{
+                    left: 0,
+                    bottom: '100%',
+                    marginBottom: 4,
+                  }}
+                  onMouseEnter={() => handleHighlightEnter(h.id)}
+                  onMouseLeave={handleHighlightLeave}
+                >
+                  {onHighlightEdit && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onHighlightEdit(h.id, e);
+                      }}
+                      className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-l-md transition-colors"
+                      title="Edit note"
+                      aria-label="Edit note"
+                    >
+                      <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
+                  )}
+                  {onHighlightDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onHighlightDelete(h.id);
+                      }}
+                      className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-r-md transition-colors"
+                      title="Delete highlight"
+                      aria-label="Delete highlight"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
         })}
 
         {/* Active selection */}

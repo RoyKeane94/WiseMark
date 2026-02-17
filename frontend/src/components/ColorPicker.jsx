@@ -10,13 +10,21 @@ const CATEGORIES = [
   { colorKey: 'orange', color: '#FB923C', shortcut: '5' },
 ];
 
-export default function ColorPicker({ position, onSelect, onClose, colorLabels }) {
+export default function ColorPicker({ position, onSelect, onClose, colorLabels, documentColorKeys }) {
   const popupRef = useRef(null);
   const commentRef = useRef(null);
   const [activeColorKey, setActiveColorKey] = useState(null);
   const [comment, setComment] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+
+  const categories =
+    documentColorKeys?.length > 0
+      ? documentColorKeys
+          .map((colorKey) => CATEGORIES.find((c) => c.colorKey === colorKey))
+          .filter(Boolean)
+      : CATEGORIES;
+  const safeCategories = categories.length > 0 ? categories : CATEGORIES;
 
   const getLabel = useCallback((colorKey) => getColorDisplayName(colorKey, colorLabels), [colorLabels]);
 
@@ -54,8 +62,8 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
       }
       if (!isExpanded) {
         const num = parseInt(e.key, 10);
-        if (num >= 1 && num <= 5) {
-          const cat = CATEGORIES[num - 1];
+        if (num >= 1 && num <= safeCategories.length) {
+          const cat = safeCategories[num - 1];
           if (cat) handleCategoryClick(cat);
         }
       }
@@ -66,7 +74,7 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded, activeColorKey, comment, onClose, handleCategoryClick, handleSave]);
+  }, [isExpanded, activeColorKey, comment, onClose, handleCategoryClick, handleSave, safeCategories]);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -85,7 +93,7 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
 
   if (!position) return null;
 
-  const activeCat = activeColorKey ? CATEGORIES.find((c) => c.colorKey === activeColorKey) : null;
+  const activeCat = activeColorKey ? safeCategories.find((c) => c.colorKey === activeColorKey) : null;
 
   return (
     <div
@@ -100,91 +108,72 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
     >
       {justSaved ? (
         <div
-          className="flex items-center gap-2 rounded-[10px] px-3.5 py-2"
-          style={{
-            background: '#1e293b',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06)',
-          }}
+          className="flex items-center gap-2 rounded-[10px] px-3.5 py-2 bg-white border border-slate-200 shadow-md"
         >
           <div
             className="flex h-[18px] w-[18px] items-center justify-center rounded-full"
             style={{ background: activeCat?.color ?? '#64748b' }}
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6L5 9L10 3" stroke="#1e293b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <span className="text-[13px] font-medium text-slate-200">Saved</span>
+          <span className="text-[13px] font-medium text-slate-800">Saved</span>
         </div>
       ) : (
         <div
-          className="overflow-hidden rounded-xl"
+          className="overflow-hidden rounded-xl bg-white border border-slate-200 shadow-lg"
           style={{
-            background: '#1e293b',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.06)',
             width: isExpanded ? 280 : 'auto',
             transition: 'width 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           <div className="flex items-center gap-0.5 p-1.5">
-            {CATEGORIES.map((cat) => (
+            {safeCategories.map((cat, idx) => (
               <button
                 key={cat.colorKey}
                 type="button"
                 onClick={() => handleCategoryClick(cat)}
-                title={`${getLabel(cat.colorKey)} (${cat.shortcut})`}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 transition-[background] duration-150"
+                title={`${getLabel(cat.colorKey)}${safeCategories.length <= 5 ? ` (${idx + 1})` : ''}`}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 transition-colors duration-150 hover:bg-slate-100"
                 style={{
-                  background: activeColorKey === cat.colorKey ? `${cat.color}20` : 'transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (activeColorKey !== cat.colorKey) e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                }}
-                onMouseLeave={(e) => {
-                  if (activeColorKey !== cat.colorKey) e.currentTarget.style.background = 'transparent';
+                  background: activeColorKey === cat.colorKey ? `${cat.color}25` : 'transparent',
                 }}
               >
                 <div
                   className="h-4 w-4 rounded-full transition-[box-shadow,transform] duration-150"
                   style={{
                     background: cat.color,
-                    boxShadow: activeColorKey === cat.colorKey ? `0 0 0 2px ${cat.color}60` : 'none',
+                    boxShadow: activeColorKey === cat.colorKey ? `0 0 0 2px ${cat.color}80` : 'none',
                     transform: activeColorKey === cat.colorKey ? 'scale(1.15)' : 'scale(1)',
                   }}
                 />
               </button>
             ))}
 
-            <div className="mx-0.5 h-4 w-px bg-white/10" />
+            <div className="mx-0.5 h-4 w-px bg-slate-200" />
 
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
               title="Add note"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 transition-[background] duration-150"
-              style={{
-                background: isExpanded ? 'rgba(255,255,255,0.08)' : 'transparent',
-              }}
-              onMouseEnter={(e) => {
-                if (!isExpanded) e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isExpanded) e.currentTarget.style.background = 'transparent';
-              }}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 transition-colors duration-150 ${
+                isExpanded ? 'bg-slate-100' : 'hover:bg-slate-100'
+              }`}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path
                   d="M13 2.5H3C2.72386 2.5 2.5 2.72386 2.5 3V13C2.5 13.2761 2.72386 13.5 3 13.5H10L13.5 10V3C13.5 2.72386 13.2761 2.5 13 2.5Z"
-                  stroke={isExpanded ? '#e2e8f0' : '#94a3b8'}
+                  stroke={isExpanded ? '#475569' : '#64748b'}
                   strokeWidth="1.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <path d="M5.5 6H10.5" stroke={isExpanded ? '#e2e8f0' : '#94a3b8'} strokeWidth="1.2" strokeLinecap="round" />
-                <path d="M5.5 8.5H8.5" stroke={isExpanded ? '#e2e8f0' : '#94a3b8'} strokeWidth="1.2" strokeLinecap="round" />
+                <path d="M5.5 6H10.5" stroke={isExpanded ? '#475569' : '#64748b'} strokeWidth="1.2" strokeLinecap="round" />
+                <path d="M5.5 8.5H8.5" stroke={isExpanded ? '#475569' : '#64748b'} strokeWidth="1.2" strokeLinecap="round" />
                 <path
                   d="M10 13.5V10H13.5"
-                  stroke={isExpanded ? '#e2e8f0' : '#94a3b8'}
+                  stroke={isExpanded ? '#475569' : '#64748b'}
                   strokeWidth="1.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -195,17 +184,17 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
             <button
               type="button"
               onClick={onClose}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent transition-[background] duration-150 hover:bg-white/10"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors duration-150"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M9 3L3 9M3 3L9 9" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M9 3L3 9M3 3L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </button>
           </div>
 
           {isExpanded && (
             <div
-              className="px-2 pb-2"
+              className="px-2 pb-2 border-t border-slate-100 pt-2"
               style={{ animation: 'expandIn 0.15s cubic-bezier(0.16, 1, 0.3, 1)' }}
             >
               {!activeCat && (
@@ -217,10 +206,10 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
               {activeCat && (
                 <div className="flex items-center gap-1.5 px-1.5 pb-2 pt-0.5">
                   <div
-                    className="h-2 w-2 rounded-full"
+                    className="h-2 w-2 rounded-full shrink-0"
                     style={{ background: activeCat.color }}
                   />
-                  <span className="text-[11px] font-medium text-slate-400">
+                  <span className="text-[11px] font-medium text-slate-600">
                     {getLabel(activeCat.colorKey)}
                   </span>
                 </div>
@@ -232,21 +221,15 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels }
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Add a note..."
                 rows={2}
-                className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-[13px] leading-relaxed text-slate-200 outline-none transition-[border-color] placeholder:text-slate-500 focus:border-white/20"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[13px] leading-relaxed text-slate-800 placeholder:text-slate-400 outline-none focus:border-slate-300 focus:ring-1 focus:ring-slate-200"
               />
 
-              <div className="mt-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">⌘ Enter to save</span>
+              <div className="mt-1.5 flex items-center justify-end">
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={!activeCat}
-                  className="rounded-md border-0 px-3 py-1 text-xs font-medium transition-all duration-150 disabled:cursor-default disabled:opacity-50"
-                  style={{
-                    background: activeCat ? activeCat.color : 'rgba(255,255,255,0.06)',
-                    color: activeCat ? '#1e293b' : '#475569',
-                    cursor: activeCat ? 'pointer' : 'default',
-                  }}
+                  className="rounded-lg border-0 px-3 py-1.5 text-xs font-medium bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-default transition-colors"
                 >
                   Save
                 </button>

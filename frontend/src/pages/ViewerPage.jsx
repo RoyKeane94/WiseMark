@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsAPI } from '../lib/api';
-import { getPDF, calculateHash, storePDF } from '../lib/db';
+import { getPDFForDocument, calculateHash, storePDF } from '../lib/db';
+import { HIGHLIGHT_COLOR_KEYS } from '../lib/colors';
 import PDFRenderer from '../components/PDFRenderer';
 import AnnotationsSidebar from '../components/AnnotationsSidebar';
 import ColorPicker from '../components/ColorPicker';
 import ColorLabelsModal from '../components/ColorLabelsModal';
+import EditNotePopover from '../components/EditNotePopover';
 import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack } from 'lucide-react';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, dividerV } from '../lib/theme';
 
@@ -27,6 +29,8 @@ export default function ViewerPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [colorLabelsOpen, setColorLabelsOpen] = useState(false);
+  const [openEditForHighlightId, setOpenEditForHighlightId] = useState(null);
+  const [editPopover, setEditPopover] = useState(null);
 
   const {
     data: document,
@@ -41,13 +45,19 @@ export default function ViewerPage() {
     enabled: !!id,
   });
 
+  /** Colours enabled for this document (from colour labels modal). Empty = all 5. */
+  const documentColorKeys = useMemo(() => {
+    const keys = Object.keys(document?.color_labels || {});
+    return keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS];
+  }, [document?.color_labels]);
+
   useEffect(() => {
     if (!document || !id) return;
     let cancelled = false;
     const load = async () => {
       setLoadingPdf(true);
       try {
-        const pdf = await getPDF(document.pdf_hash);
+        const pdf = await getPDFForDocument(document);
         if (!cancelled) {
           if (pdf) setPdfData(pdf.data);
           else setNeedsReupload(true);
@@ -214,7 +224,7 @@ export default function ViewerPage() {
             type="button"
             onClick={() => setColorLabelsOpen(true)}
             className={btnIcon}
-            title="Customize topic names"
+            title="Customise topic names"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -256,7 +266,7 @@ export default function ViewerPage() {
         </div>
       </header>
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-auto flex flex-col relative" id="pdf-scroll-container">
+        <div className="flex-1 overflow-auto flex flex-col relative pb-14" id="pdf-scroll-container">
           {pdfData && (
             <PDFRenderer
               pdfData={pdfData}
@@ -267,6 +277,28 @@ export default function ViewerPage() {
               selectionForPicker={selectionForPicker}
               onSelectionComplete={handleSelectionComplete}
               onNumPages={handleNumPages}
+              onHighlightHover={setHoveredHighlightId}
+              onHighlightHoverEnd={() => setHoveredHighlightId(null)}
+              onHighlightEdit={(highlightId, event) => {
+                const rect = event?.target?.getBoundingClientRect?.();
+                if (rect) {
+                  setEditPopover({
+                    highlightId,
+                    x: rect.left + rect.width / 2,
+                    y: rect.bottom,
+                  });
+                } else {
+                  setOpenEditForHighlightId(highlightId);
+                  setSidebarOpen(true);
+                }
+              }}
+              onHighlightDelete={async (highlightId) => {
+                if (!id) return;
+                await documentsAPI.deleteHighlight(id, highlightId);
+                queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                if (String(activeHighlightId) === String(highlightId)) setActiveHighlightId(null);
+                if (String(hoveredHighlightId) === String(highlightId)) setHoveredHighlightId(null);
+              }}
             />
           )}
           {pickerPosition && (
@@ -275,6 +307,22 @@ export default function ViewerPage() {
               onSelect={handleColorSelect}
               onClose={handlePickerClose}
               colorLabels={document?.color_labels}
+              documentColorKeys={documentColorKeys}
+            />
+          )}
+          {editPopover && (
+            <EditNotePopover
+              position={{ x: editPopover.x, y: editPopover.y }}
+              initialValue={
+                (highlights || []).find((h) => String(h.id) === String(editPopover.highlightId))?.note?.content ?? ''
+              }
+              onSave={async (noteContent) => {
+                if (!id) return;
+                await documentsAPI.updateHighlight(id, editPopover.highlightId, { note: noteContent });
+                queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                setEditPopover(null);
+              }}
+              onClose={() => setEditPopover(null)}
             />
           )}
           {colorLabelsOpen && (
@@ -293,6 +341,7 @@ export default function ViewerPage() {
           <AnnotationsSidebar
             highlights={highlights}
             colorLabels={document?.color_labels}
+            documentColorKeys={documentColorKeys}
             activeHighlightId={activeHighlightId}
             onScrollToPage={handleScrollToPage}
             onHighlightClick={handleHighlightClick}
@@ -300,16 +349,27 @@ export default function ViewerPage() {
             onHighlightHoverEnd={() => setHoveredHighlightId(null)}
             onClearActive={() => setActiveHighlightId(null)}
             documentId={id}
+            openEditForHighlightId={openEditForHighlightId}
+            onClearOpenEditForHighlightId={() => setOpenEditForHighlightId(null)}
             onHighlightNoteUpdate={async (highlightId, noteContent) => {
               if (!id) return;
               await documentsAPI.updateHighlight(id, highlightId, { note: noteContent });
               queryClient.invalidateQueries({ queryKey: ['highlights', id] });
             }}
+            onHighlightDelete={async (highlightId) => {
+              if (!id) return;
+              await documentsAPI.deleteHighlight(id, highlightId);
+              queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+              if (String(activeHighlightId) === String(highlightId)) setActiveHighlightId(null);
+              if (String(hoveredHighlightId) === String(highlightId)) setHoveredHighlightId(null);
+            }}
           />
         )}
       </div>
       {totalPages > 0 && (
-        <div className="flex shrink-0 items-center justify-center gap-2 border-t border-slate-200 bg-white py-2.5">
+        <div
+          className={`fixed bottom-0 left-0 z-10 flex items-center justify-center gap-2 border-t border-slate-200 bg-white py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] ${sidebarOpen ? 'right-80' : 'right-0'}`}
+        >
           <button
             type="button"
             onClick={handlePrevPage}

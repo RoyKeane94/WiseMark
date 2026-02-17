@@ -11,6 +11,7 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
   if (token) config.headers.Authorization = `Token ${token}`;
+  if (config.data instanceof FormData) delete config.headers['Content-Type'];
   return config;
 });
 
@@ -41,6 +42,11 @@ export const documentsAPI = {
   list: (params) => api.get('/documents/', { params }),
   get: (id) => api.get(`/documents/${id}/`),
   create: (data) => api.post('/documents/', data),
+  /** Create document with PDF file (multipart). Use this so the server stores the PDF in Postgres. */
+  createWithFile: (formData) => api.post('/documents/', formData),
+  /** Get PDF bytes for a document (server-stored PDF). Returns ArrayBuffer. */
+  getPdf: (id) =>
+    api.get(`/documents/${id}/pdf/`, { responseType: 'arraybuffer' }),
   update: (id, data) => api.patch(`/documents/${id}/`, data),
   delete: (id) => api.delete(`/documents/${id}/`),
   highlights: (id) => api.get(`/documents/${id}/highlights/`),
@@ -48,4 +54,6 @@ export const documentsAPI = {
     api.post(`/documents/${documentId}/highlights/`, data),
   updateHighlight: (documentId, highlightId, data) =>
     api.patch(`/documents/${documentId}/highlights/${highlightId}/`, data),
+  deleteHighlight: (documentId, highlightId) =>
+    api.delete(`/documents/${documentId}/highlights/${highlightId}/`),
 };
