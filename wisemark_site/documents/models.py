@@ -67,6 +67,14 @@ class Document(models.Model):
         ordering = ['-updated_at']
         unique_together = [('project', 'pdf_hash')]
 
+    def get_pdf_bytes(self):
+        """Return PDF bytes from current storage. For postgres: from pdf_file; for s3: fetch from S3 (not implemented)."""
+        if self.storage_location == StorageLocation.POSTGRES and self.pdf_file:
+            return bytes(self.pdf_file)
+        if self.storage_location == StorageLocation.S3 and self.s3_key:
+            return None
+        return None
+
 
 class DocumentColor(models.Model):
     """Per-document custom label for a colour. No row = use Color.default_name. X in UI deletes this row."""
@@ -77,15 +85,6 @@ class DocumentColor(models.Model):
     class Meta:
         unique_together = [('document', 'color')]
         ordering = ['color__key']
-
-    def get_pdf_bytes(self):
-        """Return PDF bytes from current storage. For postgres: from pdf_file; for s3: fetch from S3 (not implemented)."""
-        if self.storage_location == StorageLocation.POSTGRES and self.pdf_file:
-            return bytes(self.pdf_file)
-        if self.storage_location == StorageLocation.S3 and self.s3_key:
-            # TODO: boto3 get_object when S3 is implemented
-            return None
-        return None
 
 
 class Highlight(models.Model):
