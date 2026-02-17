@@ -17,6 +17,7 @@ class Project(models.Model):
         related_name='projects',
     )
     name = models.CharField(max_length=255)
+    color = models.CharField(max_length=7, default='#f59e0b', help_text='Hex colour for the project card accent')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -3,10 +3,22 @@ from .models import Project, Document, DocumentColor, Highlight, Note, Color
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    document_count = serializers.SerializerMethodField()
+    annotation_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
-        fields = ['id', 'name', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'color', 'created_at', 'updated_at', 'document_count', 'annotation_count']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'document_count', 'annotation_count']
+
+    def get_document_count(self, obj):
+        return obj.document_count if hasattr(obj, 'document_count') else obj.documents.count()
+
+    def get_annotation_count(self, obj):
+        if hasattr(obj, 'annotation_count'):
+            return obj.annotation_count
+        from .models import Highlight
+        return Highlight.objects.filter(document__project=obj).count()
 
 
 class ColorLabelsField(serializers.Field):

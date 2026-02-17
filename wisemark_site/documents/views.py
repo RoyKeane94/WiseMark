@@ -1,5 +1,6 @@
 import hashlib
 
+from django.db.models import Count
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -19,7 +20,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Project.objects.filter(user=self.request.user)
+        return (
+            Project.objects.filter(user=self.request.user)
+            .annotate(
+                document_count=Count('documents'),
+                annotation_count=Count('documents__highlights'),
+            )
+        )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
