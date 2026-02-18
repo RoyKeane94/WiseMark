@@ -6,6 +6,7 @@ from django.contrib import admin
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import path, include
+from django.views.generic import RedirectView
 
 
 def landing_page(request):
@@ -28,6 +29,8 @@ def serve_spa(request, path=''):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Redirect /admin (no slash) so it isn't caught by the SPA catch-all below
+    path('admin', RedirectView.as_view(url='/admin/', permanent=True)),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('documents.urls')),
     path('', landing_page),
