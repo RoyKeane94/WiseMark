@@ -65,3 +65,12 @@ def me(request):
         'email': getattr(request.user, 'email', '') or '',
         'account_id': account.pk if account else None,
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_account(request):
+    """Permanently delete the current user and all their data."""
+    user = request.user
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
