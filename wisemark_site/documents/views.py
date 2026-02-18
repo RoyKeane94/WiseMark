@@ -115,11 +115,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'detail': 'This PDF is already in this project.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        doc_color = request.data.get('color')
+        if doc_color and not (isinstance(doc_color, str) and doc_color.startswith('#') and len(doc_color) == 7):
+            doc_color = None
         serializer = self.get_serializer(
             data={
                 'project': project_id,
                 'pdf_hash': pdf_hash,
                 'filename': filename,
+                'color': doc_color or None,
                 'file_size': file_size,
                 'storage_location': storage_location,
                 'pdf_file': pdf_file,

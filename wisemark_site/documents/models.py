@@ -45,6 +45,10 @@ class Document(models.Model):
     )
     pdf_hash = models.CharField(max_length=64, help_text='SHA-256 hash of the PDF file')
     filename = models.CharField(max_length=500, help_text='Display name (editable)')
+    color = models.CharField(
+        max_length=7, null=True, blank=True,
+        help_text='Hex colour for the document card accent. Falls back to project colour if unset.',
+    )
     file_size = models.BigIntegerField(help_text='File size in bytes')
     storage_location = models.CharField(
         max_length=20,

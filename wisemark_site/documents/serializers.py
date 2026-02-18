@@ -53,7 +53,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = [
-            'id', 'project', 'pdf_hash', 'filename', 'file_size',
+            'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
             'storage_location', 'pdf_file', 's3_key',
             'color_labels', 'created_at', 'updated_at',
         ]
