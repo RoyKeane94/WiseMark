@@ -111,6 +111,8 @@ export default function DocumentsPage() {
                 <span className={`font-medium ${text.body} truncate block`}>{doc.filename}</span>
                 <span className={`text-xs ${text.muted}`}>
                   {doc.file_size != null && `${(doc.file_size / 1024).toFixed(1)} KB`}
+                  {doc.file_size != null && doc.created_at && ' · '}
+                  {doc.created_at && `Uploaded ${new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                 </span>
               </button>
               <button

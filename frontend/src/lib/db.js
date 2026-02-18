@@ -28,21 +28,22 @@ export async function getPDF(hash) {
 }
 
 /**
- * Get PDF for a document: try IndexedDB first, then fetch from server (Postgres/S3) and cache in IndexedDB.
+ * Get PDF for a document: try server first (Postgres), then IndexedDB cache.
+ * Preferring server ensures documents uploaded on another device are available everywhere.
  * @param {{ id: number, pdf_hash: string, filename: string, file_size?: number }} document
  * @returns {{ data: ArrayBuffer, filename: string, size: number } | null}
  */
 export async function getPDFForDocument(document) {
   if (!document?.pdf_hash) return null;
-  const cached = await getPDF(document.pdf_hash);
-  if (cached) return cached;
   try {
     const { data } = await documentsAPI.getPdf(document.id);
     const arrayBuffer = data instanceof ArrayBuffer ? data : data;
-    const size = document.file_size ?? arrayBuffer.byteLength ?? 0;
+    const size = document.file_size ?? arrayBuffer?.byteLength ?? 0;
     await storePDF(document.pdf_hash, document.filename || '', size, arrayBuffer);
     return { data: arrayBuffer, filename: document.filename || '', size };
   } catch {
+    const cached = await getPDF(document.pdf_hash);
+    if (cached) return cached;
     return null;
   }
 }

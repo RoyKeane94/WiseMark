@@ -26,7 +26,7 @@ function ProtectedRoute({ children }) {
 
 function PublicRoute({ children }) {
   const token = useAuthStore((s) => s.token);
-  if (token) return <Navigate to="/" replace />;
+  if (token) return <Navigate to="/app" replace />;
   return children;
 }
 
@@ -63,7 +63,15 @@ export default function App() {
               </PublicRoute>
             }
           />
-          <Route path="/" element={<HomeRoute />} />
+          <Route path="/" element={<Navigate to="/app" replace />} />
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <ProjectsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/project/:projectId"
             element={
@@ -88,7 +96,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/app" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

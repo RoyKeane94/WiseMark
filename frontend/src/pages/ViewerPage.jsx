@@ -152,14 +152,23 @@ export default function ViewerPage() {
 
   const handleReupload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !document) return;
+    if (!file || !document || !id) return;
     const arrayBuffer = await file.arrayBuffer();
     const hash = await calculateHash(arrayBuffer);
     if (hash !== document.pdf_hash) {
       alert('This file does not match the original document.');
       return;
     }
-    await storePDF(hash, file.name, file.size, arrayBuffer);
+    try {
+      const formData = new FormData();
+      formData.append('file', new Blob([arrayBuffer], { type: 'application/pdf' }), file.name || document.filename || 'document.pdf');
+      await documentsAPI.uploadPdf(id, formData);
+    } catch (err) {
+      const msg = err.response?.data?.detail ?? err.message ?? 'Upload failed';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      return;
+    }
+    await storePDF(hash, document.filename || file.name, file.size, arrayBuffer);
     setPdfData(arrayBuffer);
     setNeedsReupload(false);
   };

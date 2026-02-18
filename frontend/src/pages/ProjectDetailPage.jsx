@@ -6,6 +6,13 @@ import { calculateHash, storePDF } from '../lib/db';
 import { pageWrapper, text, bg, btnPrimary, btnIcon, border } from '../lib/theme';
 import { Upload, Loader2, FileText, Trash2, Pencil, ArrowLeft, Check, X } from 'lucide-react';
 
+function formatUploadDate(createdAt) {
+  if (!createdAt) return null;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function ProjectDetailPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -361,12 +368,14 @@ export default function ProjectDetailPage() {
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button
                     type="button"
-                    className="flex-1 min-w-0 text-left py-1"
+                    className="flex-1 min-w-0 text-left py-1 flex flex-col items-start gap-0.5"
                     onClick={() => navigate(`/document/${doc.id}`)}
                   >
-                    <span className={`font-medium ${text.body} truncate block`}>{doc.filename}</span>
-                    <span className={`text-xs ${text.muted}`}>
+                    <span className={`font-medium ${text.body} truncate block w-full`}>{doc.filename}</span>
+                    <span className={`text-xs ${text.muted} block`}>
                       {doc.file_size != null && `${(doc.file_size / 1024).toFixed(1)} KB`}
+                      {doc.file_size != null && formatUploadDate(doc.created_at) && ' · '}
+                      {formatUploadDate(doc.created_at) ? `Uploaded ${formatUploadDate(doc.created_at)}` : null}
                     </span>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">

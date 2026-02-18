@@ -47,6 +47,9 @@ export const documentsAPI = {
   /** Get PDF bytes for a document (server-stored PDF). Returns ArrayBuffer. */
   getPdf: (id) =>
     api.get(`/documents/${id}/pdf/`, { responseType: 'arraybuffer' }),
+  /** Upload PDF for a document that has none (e.g. opened on another device). File must match doc.pdf_hash. */
+  uploadPdf: (id, formData) =>
+    api.post(`/documents/${id}/upload_pdf/`, formData),
   update: (id, data) => api.patch(`/documents/${id}/`, data),
   delete: (id) => api.delete(`/documents/${id}/`),
   highlights: (id) => api.get(`/documents/${id}/highlights/`),
