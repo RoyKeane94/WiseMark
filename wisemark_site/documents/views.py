@@ -7,12 +7,117 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation
-from .serializers import ProjectSerializer, DocumentSerializer, HighlightSerializer
+from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation, HighlightPreset, PresetColor
+from .serializers import (
+    ProjectSerializer,
+    DocumentSerializer,
+    HighlightSerializer,
+    HighlightPresetSerializer,
+    HighlightPresetWriteSerializer,
+    PresetColorSerializer,
+)
 
 
 def _compute_pdf_hash(file_bytes):
     return hashlib.sha256(file_bytes).hexdigest()
+
+
+def _preset_queryset(request):
+    """System presets (user=None) plus request.user's presets."""
+    from django.db.models import Q
+    return HighlightPreset.objects.filter(
+        Q(user__isnull=True) | Q(user=request.user)
+    ).prefetch_related('colors').order_by('name')
+
+
+class HighlightPresetViewSet(viewsets.ModelViewSet):
+    """List system + user presets; create/update/delete user presets only."""
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return _preset_queryset(self.request)
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return HighlightPresetWriteSerializer
+        return HighlightPresetSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.user_id is None:
+            return Response(
+                {'detail': 'System presets cannot be deleted.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='colors')
+    def add_color(self, request, pk=None):
+        """Add a colour to a user-owned preset. System presets are read-only."""
+        preset = self.get_object()
+        if preset.user_id is None:
+            return Response(
+                {'detail': 'Cannot add colours to system presets.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        key = (request.data.get('key') or '').strip()
+        display_name = (request.data.get('display_name') or '').strip()
+        hex_val = (request.data.get('hex') or '').strip()
+        if not key:
+            return Response(
+                {'key': ['This field is required.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not display_name:
+            display_name = key
+        if not hex_val or not (len(hex_val) == 7 and hex_val.startswith('#')):
+            return Response(
+                {'hex': ['A valid hex colour (e.g. #FBBF24) is required.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if preset.colors.filter(key=key).exists():
+            return Response(
+                {'key': [f'A colour with key "{key}" already exists in this preset.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if preset.colors.count() >= 10:
+            return Response(
+                {'detail': 'Presets are limited to 10 colours.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        sort_order = preset.colors.count()
+        color = PresetColor.objects.create(
+            preset=preset,
+            key=key,
+            display_name=display_name,
+            hex=hex_val,
+            sort_order=sort_order,
+        )
+        return Response(PresetColorSerializer(color).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete', 'patch'], url_path=r'colors/(?P<color_pk>[^/.]+)')
+    def manage_color(self, request, pk=None, color_pk=None):
+        """Update or remove a colour from a user-owned preset."""
+        preset = self.get_object()
+        if preset.user_id is None:
+            return Response(
+                {'detail': 'Cannot modify system presets.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        color = preset.colors.filter(pk=color_pk).first()
+        if not color:
+            return Response({'detail': 'Colour not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'DELETE':
+            color.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        display_name = request.data.get('display_name')
+        if display_name is not None:
+            color.display_name = str(display_name).strip() or color.display_name
+            color.save(update_fields=['display_name'])
+        return Response(PresetColorSerializer(color).data)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -118,18 +223,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
         doc_color = request.data.get('color')
         if doc_color and not (isinstance(doc_color, str) and doc_color.startswith('#') and len(doc_color) == 7):
             doc_color = None
-        serializer = self.get_serializer(
-            data={
-                'project': project_id,
-                'pdf_hash': pdf_hash,
-                'filename': filename,
-                'color': doc_color or None,
-                'file_size': file_size,
-                'storage_location': storage_location,
-                'pdf_file': pdf_file,
-                's3_key': s3_key,
-            }
-        )
+        data = {
+            'project': project_id,
+            'pdf_hash': pdf_hash,
+            'filename': filename,
+            'color': doc_color or None,
+            'file_size': file_size,
+            'storage_location': storage_location,
+            'pdf_file': pdf_file,
+            's3_key': s3_key,
+        }
+        if 'highlight_preset' in request.data:
+            data['highlight_preset'] = request.data.get('highlight_preset')
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -176,7 +282,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
             page_number = request.data.get('page_number')
             position_data = request.data.get('position_data') or {}
             color_key = (request.data.get('color') or 'yellow').strip()
-            color = Color.objects.filter(key=color_key).first() or Color.objects.filter(key='yellow').first()
+            preset = doc.get_effective_preset()
+            if preset and not preset.colors.filter(key=color_key).exists():
+                color_key = next((c.key for c in preset.colors.all()), 'yellow')
+            legacy_color = Color.objects.filter(key=color_key).first()
             highlighted_text = (request.data.get('highlighted_text') or '').strip()
             if page_number is None:
                 return Response(
@@ -194,7 +303,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 document=doc,
                 page_number=page_number,
                 position_data=position_data,
-                color=color,
+                color=legacy_color,
+                color_key=color_key,
                 highlighted_text=highlighted_text or '',
             )
             comment = (request.data.get('comment') or '').strip()

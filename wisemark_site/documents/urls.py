@@ -4,6 +4,7 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'projects', views.ProjectViewSet, basename='project')
+router.register(r'presets', views.HighlightPresetViewSet, basename='preset')
 router.register(r'documents', views.DocumentViewSet, basename='document')
 
 urlpatterns = [

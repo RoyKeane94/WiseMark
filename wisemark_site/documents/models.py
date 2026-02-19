@@ -26,7 +26,7 @@ class Project(models.Model):
 
 
 class Color(models.Model):
-    """Global list of highlight colours. One row per colour (yellow, green, etc.)."""
+    """Legacy global list of highlight colours. Being replaced by HighlightPreset + PresetColor."""
     key = models.CharField(max_length=20, unique=True)
     default_name = models.CharField(max_length=255)
 
@@ -35,6 +35,52 @@ class Color(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class HighlightPreset(models.Model):
+    """A named set of highlight colours. user=null for system presets (e.g. Private Equity, Public Markets)."""
+    name = models.CharField(max_length=255)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='highlight_presets',
+        null=True,
+        blank=True,
+        help_text='Null for system presets; set for user-created presets.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'name'],
+                name='unique_preset_name_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class PresetColor(models.Model):
+    """One colour in a highlight preset. Presets can have 5 defaults or user-added colours."""
+    preset = models.ForeignKey(
+        HighlightPreset,
+        on_delete=models.CASCADE,
+        related_name='colors',
+    )
+    key = models.CharField(max_length=30, help_text='Identifier, e.g. yellow, green, or custom_1')
+    display_name = models.CharField(max_length=255)
+    hex = models.CharField(max_length=7, help_text='Hex colour, e.g. #FBBF24')
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'key']
+        unique_together = [('preset', 'key')]
+
+    def __str__(self):
+        return f'{self.preset.name}: {self.display_name}'
 
 
 class Document(models.Model):
@@ -67,10 +113,24 @@ class Document(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    highlight_preset = models.ForeignKey(
+        HighlightPreset,
+        on_delete=models.PROTECT,
+        related_name='documents',
+        null=True,
+        blank=True,
+        help_text='Which colour preset this document uses. Null falls back to first system preset.',
+    )
 
     class Meta:
         ordering = ['-updated_at']
         unique_together = [('project', 'pdf_hash')]
+
+    def get_effective_preset(self):
+        """Return the highlight preset for this document, or the first system preset if unset."""
+        if self.highlight_preset_id:
+            return self.highlight_preset
+        return HighlightPreset.objects.filter(user__isnull=True).order_by('name').first()
 
     def get_pdf_bytes(self):
         """Return PDF bytes from current storage. For postgres: from pdf_file; for s3: fetch from S3 (not implemented)."""
@@ -106,6 +166,12 @@ class Highlight(models.Model):
         Color,
         on_delete=models.PROTECT,
         related_name='highlights',
+        null=True, blank=True,
+    )
+    color_key = models.CharField(
+        max_length=60,
+        default='yellow',
+        help_text='Raw colour key, supports both legacy and custom preset keys.',
     )
     highlighted_text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

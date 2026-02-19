@@ -1,5 +1,6 @@
+from django.db.models import Q
 from rest_framework import serializers
-from .models import Project, Document, DocumentColor, Highlight, Note, Color
+from .models import Project, Document, DocumentColor, Highlight, Note, Color, HighlightPreset, PresetColor
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -19,6 +20,66 @@ class ProjectSerializer(serializers.ModelSerializer):
             return obj.annotation_count
         from .models import Highlight
         return Highlight.objects.filter(document__project=obj).count()
+
+
+class PresetColorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PresetColor
+        fields = ['id', 'key', 'display_name', 'hex', 'sort_order']
+        read_only_fields = ['id']
+
+
+class HighlightPresetSerializer(serializers.ModelSerializer):
+    colors = PresetColorSerializer(many=True, read_only=True)
+    is_system = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HighlightPreset
+        fields = ['id', 'name', 'colors', 'is_system', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_is_system(self, obj):
+        return obj.user_id is None
+
+
+class HighlightPresetWriteSerializer(serializers.ModelSerializer):
+    """Create/update presets; optional colors list (replace on update)."""
+    colors = PresetColorSerializer(many=True, required=False)
+
+    class Meta:
+        model = HighlightPreset
+        fields = ['id', 'name', 'colors']
+        read_only_fields = ['id']
+
+    def create(self, validated_data):
+        colors_data = validated_data.pop('colors', [])
+        preset = HighlightPreset.objects.create(**validated_data)
+        for i, c in enumerate(colors_data):
+            PresetColor.objects.create(
+                preset=preset,
+                key=c['key'],
+                display_name=c['display_name'],
+                hex=c['hex'],
+                sort_order=c.get('sort_order', i),
+            )
+        return preset
+
+    def update(self, instance, validated_data):
+        colors_data = validated_data.pop('colors', None)
+        instance.name = validated_data.get('name', instance.name)
+        instance.save()
+        if colors_data is not None and instance.user_id is not None:
+            # Replace colors (user presets only)
+            instance.colors.all().delete()
+            for i, c in enumerate(colors_data):
+                PresetColor.objects.create(
+                    preset=instance,
+                    key=c['key'],
+                    display_name=c['display_name'],
+                    hex=c['hex'],
+                    sort_order=c.get('sort_order', i),
+                )
+        return instance
 
 
 class ColorLabelsField(serializers.Field):
@@ -49,24 +110,50 @@ class ColorLabelsField(serializers.Field):
 class DocumentSerializer(serializers.ModelSerializer):
     project = serializers.PrimaryKeyRelatedField(queryset=Project.objects.none(), required=False)
     color_labels = ColorLabelsField(required=False)
+    highlight_preset = serializers.PrimaryKeyRelatedField(
+        queryset=HighlightPreset.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+    highlight_preset_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
         fields = [
             'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
             'storage_location', 'pdf_file', 's3_key',
-            'color_labels', 'created_at', 'updated_at',
+            'color_labels', 'highlight_preset', 'highlight_preset_detail',
+            'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail']
         extra_kwargs = {
             'pdf_file': {'write_only': True, 'read_only': False},
             's3_key': {'write_only': True, 'read_only': False},
         }
 
+    def get_highlight_preset_detail(self, obj):
+        """Effective preset for this document (selected or first system), with colors."""
+        preset = obj.get_effective_preset() if obj.pk else None
+        if not preset:
+            return None
+        return {
+            'id': preset.id,
+            'name': preset.name,
+            'colors': [
+                {'key': c.key, 'display_name': c.display_name, 'hex': c.hex, 'sort_order': c.sort_order}
+                for c in preset.colors.all()
+            ],
+        }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if 'request' in self.context:
-            self.fields['project'].queryset = Project.objects.filter(user=self.context['request'].user)
+            user = self.context['request'].user
+            self.fields['project'].queryset = Project.objects.filter(user=user)
+            # User can assign system presets (user=None) or their own presets
+            self.fields['highlight_preset'].queryset = HighlightPreset.objects.filter(
+                Q(user__isnull=True) | Q(user=user)
+            )
         if self.instance:
             self.fields['project'].read_only = True
 
@@ -92,7 +179,7 @@ class NoteSerializer(serializers.ModelSerializer):
 
 
 class HighlightSerializer(serializers.ModelSerializer):
-    color = serializers.SlugRelatedField(slug_field='key', queryset=Color.objects.all())
+    color = serializers.CharField(source='color_key')
     note = serializers.SerializerMethodField()
 
     def get_note(self, obj):
