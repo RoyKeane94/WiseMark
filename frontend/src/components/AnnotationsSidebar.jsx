@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName } from '../lib/colors';
 import { text, border, bg } from '../lib/theme';
-import { FileText, Search, Trash2 } from 'lucide-react';
+import { FileText, Search, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function AnnotationsSidebar({
   highlights,
   colorLabels,
+  presetColors = [],
   documentColorKeys,
   activeHighlightId,
   onScrollToPage,
@@ -19,8 +20,11 @@ export default function AnnotationsSidebar({
   openEditForHighlightId,
   onClearOpenEditForHighlightId,
 }) {
-  const colorKeysForFilter = documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS;
+  const colorKeysForFilter = presetColors?.length > 0
+    ? presetColors.map((c) => c.key)
+    : (documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS);
   const [colorFilter, setColorFilter] = useState('all');
+  const [categoriesCollapsed, setCategoriesCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
@@ -78,40 +82,70 @@ export default function AnnotationsSidebar({
         </p>
 
         {/* Filter pills */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          <button
-            type="button"
-            onClick={() => { setColorFilter('all'); onClearActive?.(); }}
-            className={`text-[11px] font-semibold px-3 py-1 rounded-full border cursor-pointer transition-colors ${
-              colorFilter === 'all'
-                ? 'bg-slate-900 text-white border-slate-900'
-                : `border-slate-200 ${text.secondary} hover:bg-slate-50`
-            }`}
-          >
-            All
-          </button>
-          {colorKeysForFilter.map((key) => {
-            const count = (highlights || []).filter((h) => h.color === key).length;
-            const def = HIGHLIGHT_COLORS[key];
-            if (!def) return null;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setColorFilter(colorFilter === key ? 'all' : key); onClearActive?.(); }}
-                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all ${
-                  colorFilter === key ? 'border-slate-800 scale-105' : 'border-transparent'
-                }`}
-                style={{
-                  backgroundColor: colorFilter === key ? (def.hex ?? def.solid) : `${def.hex ?? def.solid}25`,
-                  color: colorFilter === key ? 'white' : (def.hex ?? def.solid),
-                }}
-                title={getColorDisplayName(key, colorLabels)}
-              >
-                {count}
-              </button>
-            );
-          })}
+        <div className="space-y-2 mb-4">
+          {/* All on its own line */}
+          <div>
+            <button
+              type="button"
+              onClick={() => { setColorFilter('all'); onClearActive?.(); }}
+              className={`text-[11px] font-semibold px-3 py-1 rounded-full border cursor-pointer transition-colors ${
+                colorFilter === 'all'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : `border-slate-200 ${text.secondary} hover:bg-slate-50`
+              }`}
+            >
+              All
+            </button>
+          </div>
+
+          {/* Collapsible categories */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setCategoriesCollapsed((c) => !c)}
+              className={`flex items-center gap-1.5 text-[11px] font-semibold ${text.secondary} hover:text-slate-800 transition-colors`}
+            >
+              {categoriesCollapsed ? (
+                <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+              )}
+              Categories
+            </button>
+            {!categoriesCollapsed && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {colorKeysForFilter.map((key) => {
+                  const count = (highlights || []).filter((h) => h.color === key).length;
+                  const def = HIGHLIGHT_COLORS[key];
+                  const presetHex = presetColors?.find((c) => c.key === key)?.hex;
+                  const hex = presetHex ?? def?.hex ?? def?.solid ?? '#94a3b8';
+                  const name = getColorDisplayName(key, colorLabels, presetColors);
+                  const isActive = colorFilter === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { setColorFilter(isActive ? 'all' : key); onClearActive?.(); }}
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5 ${
+                        isActive ? 'border-transparent' : `border-slate-200 ${text.secondary} hover:bg-slate-50`
+                      }`}
+                      style={isActive ? { backgroundColor: `${hex}25`, color: hex } : undefined}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor: hex,
+                          opacity: 1,
+                        }}
+                      />
+                      <span>{name}</span>
+                      <span className={isActive ? 'opacity-80' : text.muted}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Search */}
@@ -145,6 +179,8 @@ export default function AnnotationsSidebar({
           <ul className="space-y-1.5">
             {filtered.map((h) => {
               const def = HIGHLIGHT_COLORS[h.color] || HIGHLIGHT_COLORS.yellow;
+              const presetC = presetColors?.find((c) => c.key === h.color);
+              const hex = presetC?.hex ?? def?.hex ?? def?.solid ?? '#94a3b8';
               const noteContent = h.note?.content;
               const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
               return (
@@ -175,7 +211,7 @@ export default function AnnotationsSidebar({
                       <div
                         className="w-0.5 min-h-9 shrink-0 rounded-full transition-opacity"
                         style={{
-                          backgroundColor: def.hex ?? def.solid,
+                          backgroundColor: hex,
                           opacity: isActive ? 1 : 0.6,
                         }}
                       />
@@ -237,11 +273,11 @@ export default function AnnotationsSidebar({
                       <span
                         className="text-[10px] font-semibold px-2 py-0.5 rounded"
                         style={{
-                          color: def.hex ?? def.solid,
-                          backgroundColor: `${def.hex ?? def.solid}12`,
+                          color: hex,
+                          backgroundColor: `${hex}12`,
                         }}
                       >
-                        {getColorDisplayName(h.color, colorLabels)}
+                        {getColorDisplayName(h.color, colorLabels, presetColors)}
                       </span>
                       <span className="text-[10px] text-slate-400">p.{h.page_number}</span>
                       {documentId && onHighlightDelete && (

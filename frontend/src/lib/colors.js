@@ -8,10 +8,29 @@ export const HIGHLIGHT_COLORS = {
 
 export const HIGHLIGHT_COLOR_KEYS = Object.keys(HIGHLIGHT_COLORS);
 
-/** Display name for a color: custom label from document or default (e.g. "Commercial DD"). */
-export function getColorDisplayName(colorKey, colorLabels = {}) {
+/** Convert #RRGGBB to rgba(r,g,b,alpha). */
+export function hexToRgba(hex, alpha = 1) {
+  if (!hex || !hex.startsWith('#')) return `rgba(148,163,184,${alpha})`;
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
+ * Display name for a color: custom label from document, else preset display_name, else legacy default.
+ * @param {string} colorKey
+ * @param {Record<string, string>} [colorLabels] - document color_labels overrides
+ * @param {{ key: string, display_name: string, hex: string }[]} [presetColors] - from document.highlight_preset_detail.colors
+ */
+export function getColorDisplayName(colorKey, colorLabels = {}, presetColors) {
   if (colorLabels && typeof colorLabels[colorKey] === 'string' && colorLabels[colorKey].trim()) {
     return colorLabels[colorKey].trim();
+  }
+  if (presetColors?.length) {
+    const p = presetColors.find((c) => c.key === colorKey);
+    if (p?.display_name) return p.display_name;
   }
   return (HIGHLIGHT_COLORS[colorKey] && HIGHLIGHT_COLORS[colorKey].name) || colorKey;
 }

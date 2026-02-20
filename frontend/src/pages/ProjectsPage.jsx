@@ -100,16 +100,16 @@ function ProjectCard({ project, onOpen }) {
   );
 }
 
-function NewProjectModal({ onClose, onCreate, isPending }) {
+function NewProjectModal({ onClose, onCreate, isPending, defaultColorIndex = 0 }) {
   const [name, setName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+  const [selectedColor, setSelectedColor] = useState(COLORS[defaultColorIndex % COLORS.length]);
 
   const handleCreate = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     onCreate(trimmed, selectedColor);
     setName('');
-    setSelectedColor(COLORS[0]);
+    setSelectedColor(COLORS[defaultColorIndex % COLORS.length]);
   };
 
   return (
@@ -257,13 +257,15 @@ export default function ProjectsPage() {
           >
             <LogOut className="w-4 h-4" />
           </button>
-          <div
-            className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-[13px] font-semibold"
+          <button
+            type="button"
+            onClick={() => navigate('/app/settings')}
+            className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-[13px] font-semibold hover:bg-slate-600 transition-colors cursor-pointer"
             style={{ fontFamily: "'DM Sans', sans-serif" }}
-            title={user?.email || 'Account'}
+            title="Account settings"
           >
             {userInitial}
-          </div>
+          </button>
         </div>
       </header>
 
@@ -271,8 +273,8 @@ export default function ProjectsPage() {
       <div className="max-w-[720px] mx-auto px-6 py-10" style={{ fontFamily: "'DM Sans', sans-serif" }}>
         <div className="flex items-start justify-between mb-2">
           <h1
-            className="m-0 text-[28px] font-normal text-slate-950 tracking-tight"
-            style={{ fontFamily: "'Instrument Serif', serif" }}
+            className="m-0 text-[28px] text-slate-950"
+            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
           >
             Projects
           </h1>
@@ -290,8 +292,8 @@ export default function ProjectsPage() {
           </button>
         </div>
 
-        {/* Stats bar — JetBrains Mono like landing section labels */}
-        <div className="flex items-center gap-3 text-[13px] text-slate-400 mb-6 uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+        {/* Stats bar — small-caps label style */}
+        <div className="flex items-center gap-3 text-xs text-slate-400 mb-6 uppercase" style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.08em' }}>
           <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
           <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
           <span>{totalDocs} document{totalDocs !== 1 ? 's' : ''}</span>
@@ -375,6 +377,7 @@ export default function ProjectsPage() {
           onClose={() => setShowModal(false)}
           onCreate={handleCreate}
           isPending={createProject.isPending}
+          defaultColorIndex={projects.length % COLORS.length}
         />
       )}
     </div>

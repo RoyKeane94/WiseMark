@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { HIGHLIGHT_COLOR_KEYS, getColorDisplayName } from '../lib/colors';
 
-// Order and hex match the new design; colorKey is the backend value.
+// Fallback when no preset from API; colorKey is the backend value.
 const CATEGORIES = [
   { colorKey: 'yellow', color: '#FBBF24', shortcut: '1' },
   { colorKey: 'green', color: '#34D399', shortcut: '2' },
@@ -10,7 +10,25 @@ const CATEGORIES = [
   { colorKey: 'orange', color: '#FB923C', shortcut: '5' },
 ];
 
-export default function ColorPicker({ position, onSelect, onClose, colorLabels, documentColorKeys }) {
+/** Build picker categories from API preset colors or fallback to documentColorKeys + CATEGORIES. */
+function buildCategories(presetColors, documentColorKeys) {
+  if (presetColors?.length) {
+    const sorted = [...presetColors].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    return sorted.map((c, i) => ({
+      colorKey: c.key,
+      color: c.hex,
+      shortcut: String(i + 1),
+    }));
+  }
+  if (documentColorKeys?.length > 0) {
+    return documentColorKeys
+      .map((colorKey) => CATEGORIES.find((c) => c.colorKey === colorKey))
+      .filter(Boolean);
+  }
+  return CATEGORIES;
+}
+
+export default function ColorPicker({ position, onSelect, onClose, colorLabels, documentColorKeys, presetColors = [] }) {
   const popupRef = useRef(null);
   const commentRef = useRef(null);
   const [activeColorKey, setActiveColorKey] = useState(null);
@@ -18,15 +36,16 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
   const [isExpanded, setIsExpanded] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
-  const categories =
-    documentColorKeys?.length > 0
-      ? documentColorKeys
-          .map((colorKey) => CATEGORIES.find((c) => c.colorKey === colorKey))
-          .filter(Boolean)
-      : CATEGORIES;
+  const categories = useMemo(
+    () => buildCategories(presetColors, documentColorKeys),
+    [presetColors, documentColorKeys]
+  );
   const safeCategories = categories.length > 0 ? categories : CATEGORIES;
 
-  const getLabel = useCallback((colorKey) => getColorDisplayName(colorKey, colorLabels), [colorLabels]);
+  const getLabel = useCallback(
+    (colorKey) => getColorDisplayName(colorKey, colorLabels, presetColors),
+    [colorLabels, presetColors]
+  );
 
   useEffect(() => {
     if (isExpanded && commentRef.current) {
@@ -134,21 +153,20 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
                 key={cat.colorKey}
                 type="button"
                 onClick={() => handleCategoryClick(cat)}
-                title={`${getLabel(cat.colorKey)}${safeCategories.length <= 5 ? ` (${idx + 1})` : ''}`}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-0 transition-colors duration-150 hover:bg-slate-100"
                 style={{
                   background: activeColorKey === cat.colorKey ? `${cat.color}25` : 'transparent',
                 }}
               >
-                <div
-                  className="h-4 w-4 rounded-full transition-[box-shadow,transform] duration-150"
-                  style={{
-                    background: cat.color,
-                    boxShadow: activeColorKey === cat.colorKey ? `0 0 0 2px ${cat.color}80` : 'none',
-                    transform: activeColorKey === cat.colorKey ? 'scale(1.15)' : 'scale(1)',
-                  }}
-                />
-              </button>
+                  <div
+                    className="h-4 w-4 rounded-full transition-[box-shadow,transform] duration-150"
+                    style={{
+                      background: cat.color,
+                      boxShadow: activeColorKey === cat.colorKey ? `0 0 0 2px ${cat.color}80` : 'none',
+                      transform: activeColorKey === cat.colorKey ? 'scale(1.15)' : 'scale(1)',
+                    }}
+                  />
+                </button>
             ))}
 
             <div className="mx-0.5 h-4 w-px bg-slate-200" />

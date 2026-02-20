@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsAPI } from '../lib/api';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { documentsAPI, presetsAPI } from '../lib/api';
 import { getPDFForDocument, calculateHash, storePDF } from '../lib/db';
 import { HIGHLIGHT_COLOR_KEYS } from '../lib/colors';
 import PDFRenderer from '../components/PDFRenderer';
 import AnnotationsSidebar from '../components/AnnotationsSidebar';
 import ColorPicker from '../components/ColorPicker';
-import ColorLabelsModal from '../components/ColorLabelsModal';
+import EditPresetModal from '../components/EditPresetModal';
 import EditNotePopover from '../components/EditNotePopover';
 import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack } from 'lucide-react';
-import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, dividerV } from '../lib/theme';
+import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border, dividerV } from '../lib/theme';
 
 export default function ViewerPage() {
   const { id } = useParams();
@@ -31,6 +31,7 @@ export default function ViewerPage() {
   const [colorLabelsOpen, setColorLabelsOpen] = useState(false);
   const [openEditForHighlightId, setOpenEditForHighlightId] = useState(null);
   const [editPopover, setEditPopover] = useState(null);
+  const [pendingPresetSwitch, setPendingPresetSwitch] = useState(null);
 
   const {
     data: document,
@@ -44,12 +45,6 @@ export default function ViewerPage() {
     },
     enabled: !!id,
   });
-
-  /** Colours enabled for this document (from colour labels modal). Empty = all 5. */
-  const documentColorKeys = useMemo(() => {
-    const keys = Object.keys(document?.color_labels || {});
-    return keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS];
-  }, [document?.color_labels]);
 
   useEffect(() => {
     if (!document || !id) return;
@@ -77,6 +72,41 @@ export default function ViewerPage() {
       return data;
     },
     enabled: !!id,
+  });
+
+  const { data: presets = [] } = useQuery({
+    queryKey: ['presets'],
+    queryFn: async () => {
+      const { data } = await presetsAPI.list();
+      return data;
+    },
+  });
+
+  /** Full preset object (from presets list, includes color IDs for editing). */
+  const currentPreset = useMemo(() => {
+    if (!presets.length) return null;
+    if (document?.highlight_preset != null) {
+      return presets.find((p) => p.id === document.highlight_preset) ?? null;
+    }
+    return presets.find((p) => p.is_system) ?? presets[0] ?? null;
+  }, [presets, document?.highlight_preset]);
+
+  /** Colours for this document: from preset when available, else from color_labels or default keys. */
+  const docPresetColors = useMemo(
+    () => (currentPreset?.colors ?? document?.highlight_preset_detail?.colors ?? []),
+    [currentPreset?.colors, document?.highlight_preset_detail?.colors]
+  );
+  const documentColorKeys = useMemo(() => {
+    if (docPresetColors?.length) return docPresetColors.map((c) => c.key);
+    const keys = Object.keys(document?.color_labels || {});
+    return keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS];
+  }, [docPresetColors, document?.color_labels]);
+
+  const updateDocMutation = useMutation({
+    mutationFn: ({ documentId, payload }) => documentsAPI.update(documentId, payload),
+    onSuccess: (_, { documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+    },
   });
 
   const handleHighlightCreated = useCallback(
@@ -229,11 +259,37 @@ export default function ViewerPage() {
           <p className={`text-sm font-medium ${text.heading} truncate max-w-xs`}>{document?.filename}</p>
         </div>
         <div className="flex items-center gap-2">
+          {presets.length > 0 && (
+            <select
+              value={document?.highlight_preset != null ? String(document.highlight_preset) : (presets.find((p) => p.is_system)?.id ?? '')}
+              onChange={(e) => {
+                const val = e.target.value;
+                const presetId = val === '' ? null : Number(val);
+                if (!id) return;
+                if (highlights.length > 0) {
+                  setPendingPresetSwitch(presetId);
+                } else {
+                  updateDocMutation.mutate({
+                    documentId: id,
+                    payload: { highlight_preset: presetId },
+                  });
+                }
+              }}
+              className={`text-xs rounded-lg border ${border.default} ${bg.surface} py-1.5 pl-2 pr-7 ${text.body} cursor-pointer max-w-44`}
+              title="Highlight colour preset"
+            >
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={() => setColorLabelsOpen(true)}
             className={btnIcon}
-            title="Customise topic names"
+            title="Edit preset"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -284,6 +340,7 @@ export default function ViewerPage() {
               hoveredHighlightId={hoveredHighlightId}
               activeHighlightId={activeHighlightId}
               selectionForPicker={selectionForPicker}
+              presetColors={docPresetColors}
               onSelectionComplete={handleSelectionComplete}
               onNumPages={handleNumPages}
               onHighlightHover={setHoveredHighlightId}
@@ -317,6 +374,7 @@ export default function ViewerPage() {
               onClose={handlePickerClose}
               colorLabels={document?.color_labels}
               documentColorKeys={documentColorKeys}
+              presetColors={docPresetColors}
             />
           )}
           {editPopover && (
@@ -335,21 +393,63 @@ export default function ViewerPage() {
             />
           )}
           {colorLabelsOpen && (
-            <ColorLabelsModal
-              colorLabels={document?.color_labels || {}}
+            <EditPresetModal
+              preset={currentPreset}
               documentId={id}
-              onSave={() => {
-                queryClient.invalidateQueries({ queryKey: ['document', id] });
-                setColorLabelsOpen(false);
-              }}
               onClose={() => setColorLabelsOpen(false)}
             />
+          )}
+          {pendingPresetSwitch !== null && (
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+              onClick={() => setPendingPresetSwitch(null)}
+            >
+              <div
+                className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-base font-semibold text-slate-800 mb-2">Switch preset?</h3>
+                <p className="text-sm text-slate-600 mb-5">
+                  This document has <strong>{highlights.length}</strong> highlight{highlights.length !== 1 ? 's' : ''}. Switching presets will <strong>delete all existing highlights</strong> because the colour categories will change.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingPresetSwitch(null)}
+                    className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const presetId = pendingPresetSwitch;
+                      setPendingPresetSwitch(null);
+                      for (const h of highlights) {
+                        await documentsAPI.deleteHighlight(id, h.id);
+                      }
+                      queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                      setActiveHighlightId(null);
+                      setHoveredHighlightId(null);
+                      updateDocMutation.mutate({
+                        documentId: id,
+                        payload: { highlight_preset: presetId },
+                      });
+                    }}
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Delete highlights & switch
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
         {sidebarOpen && (
           <AnnotationsSidebar
             highlights={highlights}
             colorLabels={document?.color_labels}
+            presetColors={docPresetColors}
             documentColorKeys={documentColorKeys}
             activeHighlightId={activeHighlightId}
             onScrollToPage={handleScrollToPage}

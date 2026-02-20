@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { authAPI } from '../lib/api';
 import { LogOut, Loader2, ArrowLeft } from 'lucide-react';
+import HighlightPresetsSection from '../components/HighlightPresetsSection';
 
 function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
   return (
@@ -113,6 +114,8 @@ export default function SettingsPage() {
         >
           Account settings
         </h1>
+
+        <HighlightPresetsSection />
 
         <section className="mt-8 p-6 bg-white border border-slate-200 rounded-xl">
           <h2 className="text-base font-semibold text-slate-800 mb-1">Delete account</h2>

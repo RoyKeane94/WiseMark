@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Loader2, Pencil, Trash2 } from 'lucide-react';
-import { HIGHLIGHT_COLORS } from '../lib/colors';
+import { HIGHLIGHT_COLORS, hexToRgba } from '../lib/colors';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -191,6 +191,7 @@ export default function PDFRenderer({
   hoveredHighlightId = null,
   activeHighlightId = null,
   selectionForPicker = null,
+  presetColors: presetColorsProp = [],
   onSelectionComplete,
   onNumPages,
   onHighlightHover,
@@ -245,6 +246,7 @@ export default function PDFRenderer({
           hoveredHighlightId={hoveredHighlightId}
           activeHighlightId={activeHighlightId}
           selectionForPicker={selectionForPicker}
+          presetColors={presetColorsProp}
           onSelectionComplete={onSelectionComplete}
           onHighlightHover={onHighlightHover}
           onHighlightHoverEnd={onHighlightHoverEnd}
@@ -264,6 +266,7 @@ function PDFPage({
   hoveredHighlightId,
   activeHighlightId,
   selectionForPicker,
+  presetColors = [],
   onSelectionComplete,
   onHighlightHover,
   onHighlightHoverEnd,
@@ -478,10 +481,14 @@ function PDFPage({
         {/* Saved highlights */}
         {pageHighlights.map((h) => {
           const rects = h.position_data?.rects || [];
+          const presetC = (presetColors ?? []).find((c) => c.key === h.color);
           const color = HIGHLIGHT_COLORS[h.color] || HIGHLIGHT_COLORS.yellow;
+          const hex = presetC?.hex ?? color?.hex ?? color?.solid;
           const isHovered = hoveredHighlightId != null && String(h.id) === String(hoveredHighlightId);
           const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
-          const bg = isHovered || isActive ? (color.rgbaHover ?? color.rgba) : (color.rgbaSoft ?? color.rgba);
+          const bg = isHovered || isActive
+            ? hexToRgba(hex, 0.38)
+            : hexToRgba(hex, 0.18);
           const hasActions = onHighlightEdit || onHighlightDelete;
           let bbox = null;
           if (rects.length > 0) {

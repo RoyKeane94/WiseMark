@@ -33,6 +33,10 @@ export default function SummaryPage() {
   });
 
   const colorLabels = document?.color_labels || {};
+  const presetColors = useMemo(
+    () => (document?.highlight_preset_detail?.colors ?? []),
+    [document?.highlight_preset_detail?.colors]
+  );
 
   const ordered = useMemo(() => {
     const list = [...(highlights || [])];
@@ -44,25 +48,26 @@ export default function SummaryPage() {
       return list;
     }
     list.sort((a, b) => {
-      const topicA = getColorDisplayName(a.color, colorLabels);
-      const topicB = getColorDisplayName(b.color, colorLabels);
+      const topicA = getColorDisplayName(a.color, colorLabels, presetColors);
+      const topicB = getColorDisplayName(b.color, colorLabels, presetColors);
       if (topicA !== topicB) return topicA.localeCompare(topicB);
       if (a.page_number !== b.page_number) return a.page_number - b.page_number;
       return new Date(a.created_at) - new Date(b.created_at);
     });
     return list;
-  }, [highlights, sortBy, colorLabels]);
+  }, [highlights, sortBy, colorLabels, presetColors]);
 
   const byTopicOrdered = useMemo(() => {
     if (sortBy !== SORT_TOPIC) return [];
+    const topicKeys = presetColors?.length ? presetColors.map((c) => c.key) : HIGHLIGHT_COLOR_KEYS;
     const groups = {};
     (highlights || []).forEach((h) => {
-      const topic = getColorDisplayName(h.color, colorLabels);
+      const topic = getColorDisplayName(h.color, colorLabels, presetColors);
       if (!groups[topic]) groups[topic] = [];
       groups[topic].push(h);
     });
-    HIGHLIGHT_COLOR_KEYS.forEach((key) => {
-      const topic = getColorDisplayName(key, colorLabels);
+    topicKeys.forEach((key) => {
+      const topic = getColorDisplayName(key, colorLabels, presetColors);
       if (groups[topic]) {
         groups[topic].sort((a, b) => {
           if (a.page_number !== b.page_number) return a.page_number - b.page_number;
@@ -70,12 +75,12 @@ export default function SummaryPage() {
         });
       }
     });
-    return HIGHLIGHT_COLOR_KEYS.map((key) => ({
-      topic: getColorDisplayName(key, colorLabels),
+    return topicKeys.map((key) => ({
+      topic: getColorDisplayName(key, colorLabels, presetColors),
       colorKey: key,
-      items: groups[getColorDisplayName(key, colorLabels)] || [],
+      items: groups[getColorDisplayName(key, colorLabels, presetColors)] || [],
     })).filter((g) => g.items.length > 0);
-  }, [highlights, sortBy, colorLabels]);
+  }, [highlights, sortBy, colorLabels, presetColors]);
 
   if (!id) {
     navigate('/', { replace: true });
@@ -152,13 +157,15 @@ export default function SummaryPage() {
         ) : sortBy === SORT_TOPIC && byTopicOrdered.length > 0 ? (
           <div className="space-y-8">
             {byTopicOrdered.map(({ topic, colorKey, items }) => {
+              const presetC = presetColors?.find((c) => c.key === colorKey);
               const def = HIGHLIGHT_COLORS[colorKey] || HIGHLIGHT_COLORS.yellow;
+              const hex = presetC?.hex ?? def?.hex ?? def?.solid ?? '#94a3b8';
               return (
                 <section key={topic}>
                   <h2 className="text-sm font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-200 flex items-center gap-2">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: def.hex ?? def.solid }}
+                      style={{ backgroundColor: hex }}
                     />
                     {topic}
                     <span className="text-slate-400 font-normal text-xs">({items.length})</span>
@@ -186,8 +193,10 @@ export default function SummaryPage() {
         ) : (
           <ul className="space-y-3">
             {ordered.map((h) => {
+              const presetC = presetColors?.find((c) => c.key === h.color);
               const def = HIGHLIGHT_COLORS[h.color] || HIGHLIGHT_COLORS.yellow;
-              const topic = getColorDisplayName(h.color, colorLabels);
+              const hex = presetC?.hex ?? def?.hex ?? def?.solid ?? '#94a3b8';
+              const topic = getColorDisplayName(h.color, colorLabels, presetColors);
               return (
                 <li
                   key={h.id}
@@ -195,7 +204,7 @@ export default function SummaryPage() {
                 >
                   <div
                     className="w-1 min-h-8 rounded-full shrink-0"
-                    style={{ backgroundColor: def.hex ?? def.solid }}
+                    style={{ backgroundColor: hex }}
                   />
                   <div className="min-w-0 flex-1">
                     <p className={`text-sm ${text.body} leading-snug`}>

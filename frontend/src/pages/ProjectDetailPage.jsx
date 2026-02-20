@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { documentsAPI, projectsAPI } from '../lib/api';
+import useAuthStore from '../stores/authStore';
+import { documentsAPI, projectsAPI, authAPI } from '../lib/api';
 import { calculateHash, storePDF } from '../lib/db';
-import { pageWrapper, text, bg, btnPrimary, btnIcon, border } from '../lib/theme';
-import { Upload, Loader2, FileText, Trash2, Pencil, ArrowLeft, Check, X } from 'lucide-react';
+import { Upload, Loader2, FileText, Trash2, Pencil, ArrowLeft, Check, X, LogOut } from 'lucide-react';
+
+const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 function formatUploadDate(createdAt) {
   if (!createdAt) return null;
@@ -26,6 +28,7 @@ export default function ProjectDetailPage() {
   const [pendingFile, setPendingFile] = useState(null);
   const [pendingFilename, setPendingFilename] = useState('');
   const [pendingFileData, setPendingFileData] = useState(null);
+  const [pendingColor, setPendingColor] = useState(COLORS[0]);
   const uploadPayloadRef = useRef(null);
   const pendingNameInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -73,6 +76,14 @@ export default function ProjectDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documents', projectId] }),
   });
 
+  const deleteProject = useMutation({
+    mutationFn: (id) => projectsAPI.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      navigate('/app', { replace: true });
+    },
+  });
+
   const handleFileChosen = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.includes('pdf')) return;
@@ -80,6 +91,7 @@ export default function ProjectDetailPage() {
     setPendingFile(file);
     const suggestedName = file.name.replace(/\.pdf$/i, '') || file.name;
     setPendingFilename(suggestedName);
+    setPendingColor(COLORS[documents.length % COLORS.length]);
     setPendingFileData(null);
     uploadPayloadRef.current = null;
     try {
@@ -99,6 +111,7 @@ export default function ProjectDetailPage() {
     setPendingFile(null);
     setPendingFilename('');
     setPendingFileData(null);
+    setPendingColor(COLORS[0]);
     setUploadError('');
     uploadPayloadRef.current = null;
     setFileInputKey((k) => k + 1);
@@ -133,6 +146,7 @@ export default function ProjectDetailPage() {
       const formData = new FormData();
       formData.append('project', String(pid));
       formData.append('filename', filename);
+      formData.append('color', pendingColor);
       formData.append('file', new Blob([data.arrayBuffer]), filename);
       await documentsAPI.createWithFile(formData);
       // Cache in IndexedDB so viewer can use it without re-fetching
@@ -191,62 +205,124 @@ export default function ProjectDetailPage() {
     setProjectName('');
   };
 
+  const logout = useAuthStore((s) => s.logout);
+  const { data: user } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const { data } = await authAPI.me();
+      return data;
+    },
+  });
+  const userInitial = (user?.email?.[0] || user?.username?.[0] || '?').toUpperCase();
+  const projectColor = project?.color && COLORS.includes(project.color)
+    ? project.color
+    : project ? COLORS[project.id % COLORS.length] : COLORS[0];
+
   if (projectLoading || !project) {
     return (
-      <div className={`${pageWrapper} ${bg.page} flex items-center justify-center`}>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
       </div>
     );
   }
 
   return (
-    <div className={`${pageWrapper} ${bg.page}`}>
-      <header className="flex items-center justify-between mb-6">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className={`flex items-center gap-2 ${text.secondary} hover:text-slate-900 ${btnIcon}`}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+    <div className="min-h-screen bg-slate-50 antialiased" style={{ fontFamily: "'DM Sans', sans-serif", color: '#1e293b' }}>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+      />
+
+      <header className="bg-white/92 backdrop-blur-md border-b border-slate-200 py-4 px-10 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/app')}
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+            title="Back to projects"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center text-white text-xs font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            W
+          </div>
+          <span className="text-[1.05rem] font-semibold text-slate-900" style={{ fontFamily: "'Instrument Serif', serif" }}>
+            WiseMark
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => { logout(); navigate('/login', { replace: true }); }} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Sign out">
+            <LogOut className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => navigate('/app/settings')} className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-[13px] font-semibold hover:bg-slate-600 transition-colors cursor-pointer" title="Account settings">
+            {userInitial}
+          </button>
+        </div>
       </header>
 
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          {editingProjectName ? (
-            <>
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-slate-900 text-xl font-semibold min-w-0 flex-1 max-w-md"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveProjectName();
-                  if (e.key === 'Escape') cancelEditProjectName();
-                }}
-              />
-              <button type="button" onClick={saveProjectName} className="p-2 text-green-600 hover:bg-slate-100 rounded" title="Save">
-                <Check className="w-5 h-5" />
-              </button>
-              <button type="button" onClick={cancelEditProjectName} className="p-2 text-slate-500 hover:bg-slate-100 rounded" title="Cancel">
-                <X className="w-5 h-5" />
-              </button>
-            </>
-          ) : (
-            <>
-              <h1 className={`text-xl font-semibold ${text.heading}`}>{project.name}</h1>
-              <button type="button" onClick={startEditProjectName} className="p-2 text-slate-400 hover:text-slate-600 rounded" title="Edit project name">
-                <Pencil className="w-4 h-4" />
-              </button>
-            </>
-          )}
+      <div className="max-w-[720px] mx-auto px-6 py-10" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {editingProjectName ? (
+              <>
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-slate-900 min-w-0 flex-1 max-w-md text-[28px]"
+                  style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveProjectName();
+                    if (e.key === 'Escape') cancelEditProjectName();
+                  }}
+                />
+                <button type="button" onClick={saveProjectName} className="p-2 text-green-600 hover:bg-slate-100 rounded-lg shrink-0" title="Save">
+                  <Check className="w-5 h-5" />
+                </button>
+                <button type="button" onClick={cancelEditProjectName} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg shrink-0" title="Cancel">
+                  <X className="w-5 h-5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <h1 className="m-0 text-[28px] text-slate-950 truncate" style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}>
+                  {project.name}
+                </h1>
+                <button type="button" onClick={startEditProjectName} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg shrink-0" title="Edit project name">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Delete project "${project.name}" and all its documents? This cannot be undone.`)) {
+                      deleteProject.mutate(projectId);
+                    }
+                  }}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                  title="Delete project"
+                  disabled={deleteProject.isPending}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={openFilePicker}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors hover:bg-slate-700 shrink-0 disabled:opacity-70"
+            style={{ background: '#1e293b', fontFamily: "'DM Sans', sans-serif" }}
+          >
+            <Upload className="w-4 h-4" />
+            Add PDF
+          </button>
         </div>
-        <button type="button" onClick={openFilePicker} disabled={uploading} className={`${btnPrimary} inline-flex items-center gap-2`}>
-          <Upload className="w-4 h-4" />
-          Add PDF
-        </button>
+
+        <div className="flex items-center gap-3 text-xs text-slate-400 mb-6 uppercase" style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.08em' }}>
+          <span>{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
+        </div>
         <input
           key={fileInputKey}
           ref={fileInputRef}
@@ -257,16 +333,100 @@ export default function ProjectDetailPage() {
           aria-hidden="true"
           tabIndex={-1}
         />
+
+        {uploadError && <p className="text-sm text-red-600 mb-4">{uploadError}</p>}
+        {uploading && (
+          <p className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+            <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+          </p>
+        )}
+
+        {docsLoading ? (
+          <div className="flex items-center gap-2 text-slate-500 py-12" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            <Loader2 className="w-5 h-5 animate-spin" /> Loading PDFs…
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 p-8 text-center text-slate-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            <FileText className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+            <p>No PDFs in this project yet. Add a PDF above.</p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {documents.map((doc) => (
+              <li
+                key={doc.id}
+                className="rounded-xl border border-slate-200 bg-white overflow-hidden transition-all duration-200 hover:shadow-[0_4px_12px_rgba(71,85,105,0.08)] hover:-translate-y-px cursor-pointer"
+              >
+                {editingId === doc.id ? (
+                  <div className="flex items-center gap-2 px-5 py-3">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveRename();
+                        if (e.key === 'Escape') cancelRename();
+                      }}
+                    />
+                    <button type="button" onClick={saveRename} className="p-2.5 text-green-600 hover:bg-slate-100 rounded-lg shrink-0" title="Save">
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={cancelRename} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-lg shrink-0" title="Cancel">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 px-5 py-3 cursor-pointer" onClick={() => navigate(`/document/${doc.id}`)}>
+                    <div className="shrink-0 rounded-sm" style={{ width: 4, height: 40, background: (doc.color && COLORS.includes(doc.color) ? doc.color : projectColor) }} />
+                    <div className="flex-1 min-w-0 py-1 flex flex-col items-start gap-0.5">
+                      <span className="text-base font-normal text-slate-900 truncate block w-full" style={{ fontFamily: "'Instrument Serif', serif" }}>
+                        {doc.filename}
+                      </span>
+                      <span className="text-xs text-slate-400 block" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        {doc.file_size != null && `${(doc.file_size / 1024).toFixed(1)} KB`}
+                        {doc.file_size != null && formatUploadDate(doc.created_at) && ' · '}
+                        {formatUploadDate(doc.created_at) ? `Uploaded ${formatUploadDate(doc.created_at)}` : null}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); startRename(doc); }}
+                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg shrink-0"
+                      title="Rename"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Delete this PDF?')) deleteDoc.mutate(doc.id);
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Modal: Name PDF before upload */}
       {pendingFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={cancelAddPdf}>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm" onClick={cancelAddPdf}>
           <div
-            className={`rounded-xl ${bg.surface} border ${border.default} shadow-xl w-full max-w-md p-6`}
+            className="rounded-xl bg-white border border-slate-200 shadow-xl w-full max-w-md p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className={`text-lg font-semibold ${text.heading} mb-4`}>Name this PDF</h2>
+            <h2 className="m-0 text-xl font-normal text-slate-900 mb-4" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Name this PDF
+            </h2>
             {!pendingFileData ? (
               <div className="flex items-center gap-2 text-slate-600 py-4">
                 <Loader2 className="w-5 h-5 animate-spin shrink-0" />
@@ -287,7 +447,27 @@ export default function ProjectDetailPage() {
                   autoFocus
                   disabled={uploading}
                 />
-                <div className="flex justify-end gap-3 pt-2">
+                <label className="block text-[13px] font-medium text-slate-600 mb-2 uppercase tracking-wider" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  Colour
+                </label>
+                <div className="flex gap-2">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setPendingColor(c)}
+                      disabled={uploading}
+                      className="w-7 h-7 rounded-full shrink-0 transition-all border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-60"
+                      style={{
+                        background: c,
+                        borderColor: pendingColor === c ? '#1e293b' : 'transparent',
+                        outline: pendingColor === c ? '2px solid #fff' : 'none',
+                        outlineOffset: -4,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-end gap-3 pt-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   <button
                     type="button"
                     onClick={cancelAddPdf}
@@ -303,7 +483,8 @@ export default function ProjectDetailPage() {
                       handleUploadAndSave(e);
                     }}
                     disabled={uploading || !pendingFilename.trim()}
-                    className={btnPrimary}
+                    className="px-4 py-2 text-sm font-medium rounded-lg text-white hover:bg-slate-700"
+                    style={{ background: '#1e293b' }}
                   >
                     {uploading ? (
                       <span className="inline-flex items-center gap-2">
@@ -319,91 +500,6 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
-      )}
-
-      {uploadError && <p className="text-sm text-red-600 mb-4">{uploadError}</p>}
-      {uploading && (
-        <p className="flex items-center gap-2 text-sm text-slate-600 mb-4">
-          <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
-        </p>
-      )}
-
-      {docsLoading ? (
-        <div className="flex items-center gap-2 text-slate-500">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading PDFs...
-        </div>
-      ) : documents.length === 0 ? (
-        <div className={`rounded-xl border ${border.default} p-8 text-center ${text.secondary}`}>
-          <FileText className="w-12 h-12 mx-auto mb-3 text-slate-400" />
-          <p>No PDFs in this project yet. Add a PDF above.</p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {documents.map((doc) => (
-            <li
-              key={doc.id}
-              className={`rounded-lg border ${border.default} ${bg.surface} overflow-hidden`}
-            >
-              {editingId === doc.id ? (
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') saveRename();
-                      if (e.key === 'Escape') cancelRename();
-                    }}
-                  />
-                  <button type="button" onClick={saveRename} className="p-2.5 text-green-600 hover:bg-slate-100 rounded-lg shrink-0" title="Save">
-                    <Check className="w-4 h-4" />
-                  </button>
-                  <button type="button" onClick={cancelRename} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-lg shrink-0" title="Cancel">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <button
-                    type="button"
-                    className="flex-1 min-w-0 text-left py-1 flex flex-col items-start gap-0.5"
-                    onClick={() => navigate(`/document/${doc.id}`)}
-                  >
-                    <span className={`font-medium ${text.body} truncate block w-full`}>{doc.filename}</span>
-                    <span className={`text-xs ${text.muted} block`}>
-                      {doc.file_size != null && `${(doc.file_size / 1024).toFixed(1)} KB`}
-                      {doc.file_size != null && formatUploadDate(doc.created_at) && ' · '}
-                      {formatUploadDate(doc.created_at) ? `Uploaded ${formatUploadDate(doc.created_at)}` : null}
-                    </span>
-                  </button>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => startRename(doc)}
-                      className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-                      title="Rename"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm('Delete this PDF?')) deleteDoc.mutate(doc.id);
-                      }}
-                      className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );

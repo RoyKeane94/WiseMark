@@ -8,17 +8,24 @@ import { X, Plus } from 'lucide-react';
 
 const INPUT_NAME_PREFIX = 'color_label_';
 
-export default function ColorLabelsModal({ colorLabels = {}, documentId, onSave, onClose }) {
+function sortKeysByOrder(keys, order) {
+  if (!order?.length) return keys;
+  return [...keys].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
+export default function ColorLabelsModal({ colorLabels = {}, presetColors = [], documentId, onSave, onClose }) {
   const queryClient = useQueryClient();
   const formRef = useRef(null);
-  // Keys of colours currently in the document (shown as rows). Empty API = treat as all 5 for backward compat.
-  const [documentColorKeys, setDocumentColorKeys] = useState(() =>
-    Object.keys(colorLabels || {}).length > 0 ? Object.keys(colorLabels) : [...HIGHLIGHT_COLOR_KEYS]
-  );
+  const presetKeys = presetColors?.map((c) => c.key) ?? HIGHLIGHT_COLOR_KEYS;
+  const [documentColorKeys, setDocumentColorKeys] = useState(() => {
+    const keys = Object.keys(colorLabels || {});
+    return keys.length > 0 ? keys : (presetKeys.length > 0 ? [...presetKeys] : [...HIGHLIGHT_COLOR_KEYS]);
+  });
 
   useEffect(() => {
     const keys = Object.keys(colorLabels || {});
-    setDocumentColorKeys(keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS]);
+    const defaultKeys = presetColors?.length ? presetColors.map((c) => c.key) : HIGHLIGHT_COLOR_KEYS;
+    setDocumentColorKeys(keys.length > 0 ? keys : [...defaultKeys]);
   }, [documentId, colorLabels]);
 
   const updateDoc = useMutation({
@@ -38,11 +45,12 @@ export default function ColorLabelsModal({ colorLabels = {}, documentId, onSave,
 
   const handleAddColor = (key) => {
     if (documentColorKeys.includes(key)) return;
-    setDocumentColorKeys((prev) => [...prev, key].sort((a, b) => HIGHLIGHT_COLOR_KEYS.indexOf(a) - HIGHLIGHT_COLOR_KEYS.indexOf(b)));
+    setDocumentColorKeys((prev) => sortKeysByOrder([...prev, key], presetKeys));
   };
 
-  const availableToAdd = HIGHLIGHT_COLOR_KEYS.filter((k) => !documentColorKeys.includes(k));
-  const canAddMore = documentColorKeys.length < 5 && availableToAdd.length > 0;
+  const availableToAdd = presetKeys.filter((k) => !documentColorKeys.includes(k));
+  const maxColors = presetColors?.length ?? 5;
+  const canAddMore = documentColorKeys.length < maxColors && availableToAdd.length > 0;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -80,18 +88,17 @@ export default function ColorLabelsModal({ colorLabels = {}, documentId, onSave,
         <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 overflow-auto flex-1 min-h-0">
           {documentColorKeys.map((key) => {
             const col = HIGHLIGHT_COLORS[key];
-            const defaultName = col?.name || key;
+            const presetCol = presetColors?.find((c) => c.key === key);
+            const defaultName = presetCol?.display_name ?? col?.name ?? key;
+            const hex = presetCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
             const initialValue = (colorLabels && colorLabels[key]) ?? '';
             return (
               <div key={key} className="flex items-center gap-3">
                 <div
                   className="h-8 w-8 rounded-full shrink-0 border-2 border-slate-200"
-                  style={{ backgroundColor: col?.hex ?? col?.solid }}
+                  style={{ backgroundColor: hex }}
                 />
                 <div className="flex-1 min-w-0">
-                  <label className={`text-xs ${text.muted} block mb-0.5`} htmlFor={INPUT_NAME_PREFIX + key}>
-                    {col?.label ?? key} (default: {defaultName})
-                  </label>
                   <div className="flex items-center gap-2">
                     <input
                       id={INPUT_NAME_PREFIX + key}
@@ -130,6 +137,9 @@ export default function ColorLabelsModal({ colorLabels = {}, documentId, onSave,
               <div className="flex flex-wrap gap-2">
                 {availableToAdd.map((key) => {
                   const col = HIGHLIGHT_COLORS[key];
+                  const presetCol = presetColors?.find((c) => c.key === key);
+                  const hex = presetCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
+                  const label = presetCol?.display_name ?? col?.label ?? key;
                   return (
                     <button
                       key={key}
@@ -139,9 +149,9 @@ export default function ColorLabelsModal({ colorLabels = {}, documentId, onSave,
                     >
                       <span
                         className="h-5 w-5 rounded-full border border-slate-200 shrink-0"
-                        style={{ backgroundColor: col?.hex ?? col?.solid }}
+                        style={{ backgroundColor: hex }}
                       />
-                      <span>{col?.label ?? key}</span>
+                      <span>{label}</span>
                       <Plus className="w-4 h-4 text-slate-400" strokeWidth={2} />
                     </button>
                   );
