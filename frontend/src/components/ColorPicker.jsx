@@ -117,7 +117,7 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
   return (
     <div
       ref={popupRef}
-      className="fixed z-[1000]"
+      className="fixed z-1000"
       style={{
         left: position.x,
         top: position.y - 48,

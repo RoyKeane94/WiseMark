@@ -419,7 +419,7 @@ export default function ProjectDetailPage() {
 
       {/* Modal: Name PDF before upload */}
       {pendingFile && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm" onClick={cancelAddPdf}>
+        <div className="fixed inset-0 z-1000 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm" onClick={cancelAddPdf}>
           <div
             className="rounded-xl bg-white border border-slate-200 shadow-xl w-full max-w-md p-6"
             onClick={(e) => e.stopPropagation()}

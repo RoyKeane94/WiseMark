@@ -401,7 +401,7 @@ export default function ViewerPage() {
           )}
           {pendingPresetSwitch !== null && (
             <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+              className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40"
               onClick={() => setPendingPresetSwitch(null)}
             >
               <div

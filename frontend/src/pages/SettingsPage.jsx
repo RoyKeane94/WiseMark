@@ -8,7 +8,7 @@ import HighlightPresetsSection from '../components/HighlightPresetsSection';
 function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
   return (
     <div
-      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-[1000]"
+      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000"
       onClick={onClose}
     >
       <div
