@@ -137,8 +137,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return (
             Project.objects.filter(user=self.request.user)
             .annotate(
-                document_count=Count('documents'),
-                annotation_count=Count('documents__highlights'),
+                document_count=Count('documents', distinct=True),
+                annotation_count=Count('documents__highlights', distinct=True),
             )
         )
 
