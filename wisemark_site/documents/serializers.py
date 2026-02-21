@@ -90,9 +90,11 @@ class ColorLabelsField(serializers.Field):
         super().__init__(**kwargs)
 
     def to_representation(self, value):
-        # value is the document instance when source='*'. Return all DocumentColor rows (key -> custom_name).
         if not value or not getattr(value, 'pk', None):
             return {}
+        # Use prefetched document_colors if available (from DocumentViewSet queryset)
+        if hasattr(value, '_prefetched_objects_cache') and 'document_colors' in value._prefetched_objects_cache:
+            return {dc.color.key: (dc.custom_name or '') for dc in value.document_colors.all()}
         qs = DocumentColor.objects.filter(document=value).select_related('color')
         return {dc.color.key: (dc.custom_name or '') for dc in qs}
 
@@ -122,7 +124,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = [
             'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
-            'storage_location', 'pdf_file', 's3_key',
+            'storage_location',
             'color_labels', 'highlight_preset', 'highlight_preset_detail',
             'annotation_count', 'last_opened_at',
             'created_at', 'updated_at',
@@ -133,14 +135,26 @@ class DocumentSerializer(serializers.ModelSerializer):
         if hasattr(obj, '_annotation_count'):
             return obj._annotation_count
         return obj.highlights.count()
-        extra_kwargs = {
-            'pdf_file': {'write_only': True, 'read_only': False},
-            's3_key': {'write_only': True, 'read_only': False},
-        }
+
+    def _get_default_system_preset(self):
+        """Cache the default system preset so we don't query once per document."""
+        if not hasattr(self, '_cached_system_preset'):
+            self._cached_system_preset = (
+                HighlightPreset.objects.filter(user__isnull=True)
+                .prefetch_related('colors')
+                .order_by('name')
+                .first()
+            )
+        return self._cached_system_preset
 
     def get_highlight_preset_detail(self, obj):
         """Effective preset for this document (selected or first system), with colors."""
-        preset = obj.get_effective_preset() if obj.pk else None
+        if not obj.pk:
+            return None
+        if obj.highlight_preset_id:
+            preset = obj.highlight_preset
+        else:
+            preset = self._get_default_system_preset()
         if not preset:
             return None
         return {
@@ -190,10 +204,10 @@ class HighlightSerializer(serializers.ModelSerializer):
     note = serializers.SerializerMethodField()
 
     def get_note(self, obj):
-        try:
-            return NoteSerializer(obj.note).data
-        except Note.DoesNotExist:
+        note = getattr(obj, 'note', None)
+        if note is None:
             return None
+        return NoteSerializer(note).data
 
     class Meta:
         model = Highlight

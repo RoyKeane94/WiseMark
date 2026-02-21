@@ -151,8 +151,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Document.objects.filter(project__user=self.request.user).annotate(
-            _annotation_count=Count('highlights'),
+        qs = (
+            Document.objects.filter(project__user=self.request.user)
+            .defer('pdf_file')
+            .select_related('highlight_preset', 'project')
+            .prefetch_related('highlight_preset__colors', 'document_colors__color')
+            .annotate(_annotation_count=Count('highlights'))
         )
         project_id = self.request.query_params.get('project')
         if project_id:
@@ -261,7 +265,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='pdf')
     def pdf(self, request, pk=None):
         """Return the stored PDF bytes (postgres or s3)."""
-        doc = self.get_object()
+        doc = Document.objects.only('id', 'pdf_file', 'storage_location', 's3_key', 'project_id').get(
+            pk=self.kwargs['pk'], project__user=request.user,
+        )
         pdf_bytes = doc.get_pdf_bytes()
         if not pdf_bytes:
             return Response(
@@ -273,7 +279,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='upload_pdf')
     def upload_pdf(self, request, pk=None):
         """Store PDF bytes for a document that was created without them (e.g. metadata-only or legacy). File must match doc.pdf_hash."""
-        doc = self.get_object()
+        doc = Document.objects.only('id', 'pdf_hash', 'pdf_file', 'storage_location', 'file_size', 'project_id').get(
+            pk=self.kwargs['pk'], project__user=request.user,
+        )
         uploaded_file = request.FILES.get('file')
         if not uploaded_file or not (uploaded_file.name or '').lower().endswith('.pdf'):
             return Response(
@@ -330,7 +338,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 Note.objects.create(highlight=highlight, content=comment)
             serializer = HighlightSerializer(highlight)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        highlights = doc.highlights.all()
+        highlights = doc.highlights.select_related('note').all()
         serializer = HighlightSerializer(highlights, many=True)
         return Response(serializer.data)
 
