@@ -379,7 +379,7 @@ export default function SummaryPage() {
     <div className="min-h-screen bg-[#F8FAFB]" style={{ fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
       {/* Sticky header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-50" style={{ padding: '16px 32px' }}>
-        <div className="max-w-[820px] mx-auto">
+        <div className="max-w-[1060px] mx-auto">
           {/* Top row */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-3">
@@ -557,7 +557,7 @@ export default function SummaryPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-[820px] mx-auto" style={{ padding: '24px 32px 60px 64px' }}>
+      <div className="max-w-[1060px] mx-auto" style={{ padding: '24px 32px 60px 64px' }}>
         {!highlights.length ? (
           <div className="text-center py-16 text-slate-400 text-sm">
             <p>No highlights yet.</p>
