@@ -1,180 +1,152 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI } from '../lib/api';
-import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName, hexToRgba } from '../lib/colors';
-import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, Trash2, X, Download, FileText, FileDown, Braces } from 'lucide-react';
+import {
+  HIGHLIGHT_COLORS,
+  HIGHLIGHT_COLOR_KEYS,
+  getColorDisplayName,
+  hexToRgba,
+} from '../lib/colors';
+import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border } from '../lib/theme';
+import {
+  ArrowLeft,
+  FileText,
+  FileDown,
+  Braces,
+  Search,
+  Copy,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Check,
+  X,
+} from 'lucide-react';
 
-function useLensColorMap(lensColors) {
-  return useMemo(() => {
-    const map = {};
-    if (lensColors?.length) {
-      lensColors.forEach((c) => {
-        map[c.key] = { hex: c.hex, displayName: c.display_name };
-      });
-    }
-    return map;
-  }, [lensColors]);
-}
-
-function getHex(colorKey, lensColorMap) {
-  if (lensColorMap[colorKey]) return lensColorMap[colorKey].hex;
-  const def = HIGHLIGHT_COLORS[colorKey];
-  return def?.hex ?? def?.solid ?? '#94a3b8';
-}
-
-function hexToRgb(hex) {
-  const n = parseInt((hex || '#94a3b8').replace('#', ''), 16);
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-}
-
-function buildAnnotationRows(highlights, colorLabels, lensColors, lensColorMap, colorKeys) {
-  const sorted = [...highlights].sort((a, b) => {
-    if (a.page_number !== b.page_number) return a.page_number - b.page_number;
-    return new Date(a.created_at) - new Date(b.created_at);
-  });
-  return sorted.map((h, i) => ({
-    seq: i + 1,
-    text: h.highlighted_text || '',
-    note: h.note?.content || '',
-    page: h.page_number,
-    category: getColorDisplayName(h.color, colorLabels, lensColors),
-    colorKey: h.color,
-    hex: getHex(h.color, lensColorMap),
-  }));
-}
-
-function buildGroupedByTopic(rows, colorKeys, colorLabels, lensColors, lensColorMap) {
-  const groups = {};
-  rows.forEach((r) => { (groups[r.colorKey] ??= []).push(r); });
-  return colorKeys
-    .map((key) => ({
-      topic: getColorDisplayName(key, colorLabels, lensColors),
-      hex: getHex(key, lensColorMap),
-      items: groups[key] || [],
-    }))
-    .filter((g) => g.items.length > 0);
-}
-
-async function exportDocx(filename, rows, grouped) {
-  const [{ Document: DocxDocument, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle }, { saveAs }] =
-    await Promise.all([import('docx'), import('file-saver')]);
-
-  const children = [];
-  children.push(new Paragraph({ text: filename, heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
-  children.push(new Paragraph({ text: `${rows.length} annotations`, spacing: { after: 300 }, style: 'Subtitle' }));
-
-  grouped.forEach(({ topic, hex, items }) => {
-    children.push(new Paragraph({
-      spacing: { before: 300, after: 100 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: hex.replace('#', '') } },
-      children: [new TextRun({ text: `${topic} (${items.length})`, bold: true, size: 24, color: hex.replace('#', '') })],
-    }));
-    items.forEach((r) => {
-      children.push(new Paragraph({
-        spacing: { before: 120, after: 40 },
-        children: [
-          new TextRun({ text: `"${r.text}"`, italics: true, size: 21 }),
-          new TextRun({ text: `  — p.${r.page}`, size: 18, color: '94A3B8' }),
-        ],
-      }));
-      if (r.note) {
-        children.push(new Paragraph({
-          spacing: { after: 60 },
-          children: [new TextRun({ text: r.note, size: 18, italics: true, color: hex.replace('#', '') })],
-        }));
-      }
-    });
-  });
-
-  const doc = new DocxDocument({ sections: [{ children }] });
-  const blob = await Packer.toBlob(doc);
-  saveAs(blob, `${filename.replace(/\.pdf$/i, '')} — Summary.docx`);
-}
-
-async function exportPdf(filename, rows, grouped) {
-  const { jsPDF } = await import('jspdf');
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const margin = 18;
-  const contentW = pageW - margin * 2;
-  let y = margin;
-
-  const ensureSpace = (needed) => {
-    if (y + needed > pdf.internal.pageSize.getHeight() - margin) {
-      pdf.addPage();
-      y = margin;
-    }
-  };
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(16);
-  pdf.text(filename, margin, y);
-  y += 8;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(10);
-  pdf.setTextColor(100);
-  pdf.text(`${rows.length} annotations`, margin, y);
-  y += 12;
-
-  grouped.forEach(({ topic, hex, items }) => {
-    ensureSpace(18);
-    const [r, g, b] = hexToRgb(hex);
-    pdf.setDrawColor(r, g, b);
-    pdf.setLineWidth(0.5);
-    pdf.line(margin, y, margin + contentW, y);
-    y += 5;
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(11);
-    pdf.setTextColor(r, g, b);
-    pdf.text(`${topic} (${items.length})`, margin, y);
-    y += 7;
-
-    items.forEach((row) => {
-      ensureSpace(14);
-      pdf.setFont('helvetica', 'italic');
-      pdf.setFontSize(9.5);
-      pdf.setTextColor(30);
-      const lines = pdf.splitTextToSize(`"${row.text}"`, contentW - 10);
-      lines.forEach((line) => {
-        ensureSpace(5);
-        pdf.text(line, margin + 2, y);
-        y += 4.2;
-      });
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
-      pdf.setTextColor(148, 163, 184);
-      pdf.text(`p.${row.page}  #${row.seq}`, margin + 2, y);
-      y += 4;
-      if (row.note) {
-        ensureSpace(5);
-        pdf.setFont('helvetica', 'italic');
-        pdf.setFontSize(8.5);
-        pdf.setTextColor(r, g, b);
-        const noteLines = pdf.splitTextToSize(row.note, contentW - 10);
-        noteLines.forEach((line) => {
-          ensureSpace(4.5);
-          pdf.text(line, margin + 2, y);
-          y += 4;
-        });
-      }
-      y += 3;
-    });
-    y += 4;
-  });
-
-  pdf.save(`${filename.replace(/\.pdf$/i, '')} — Summary.pdf`);
-}
-
-function exportJson(filename, rows) {
-  const blob = new Blob(
-    [JSON.stringify({ document: filename, exported_at: new Date().toISOString(), annotations: rows }, null, 2)],
-    { type: 'application/json' },
+function getHex(colorKey, lensColors) {
+  return (
+    lensColors?.find((c) => c.key === colorKey)?.hex ??
+    HIGHLIGHT_COLORS[colorKey]?.hex ??
+    '#94a3b8'
   );
-  const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'), { href: url, download: `${filename.replace(/\.pdf$/i, '')} — Summary.json` });
-  a.click();
-  URL.revokeObjectURL(url);
+}
+
+function AnnotationCard({
+  highlight,
+  selected,
+  onToggleSelect,
+  lensColors,
+  colorLabels,
+  editingNoteId,
+  editingNoteValue,
+  onStartEdit,
+  onSaveNote,
+  onCancelEdit,
+  onEditValueChange,
+  onCopy,
+  onDelete,
+}) {
+  const colorKey = highlight.color;
+  const hex = getHex(colorKey, lensColors);
+  const displayName = getColorDisplayName(colorKey, colorLabels, lensColors);
+  const isEditing = editingNoteId === highlight.id;
+
+  return (
+    <div
+      className={`rounded-[10px] p-3 border bg-white transition-all ${
+        selected ? 'border-slate-300' : 'border-slate-200 hover:border-slate-300'
+      }`}
+    >
+      <div className="flex gap-2.5 items-start">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(highlight.id)}
+          className="mt-1.5 shrink-0 rounded border-slate-300 text-slate-800 focus:ring-slate-400 cursor-pointer"
+          aria-label="Select highlight"
+        />
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs leading-snug ${text.body} whitespace-pre-wrap`}>
+            {highlight.highlighted_text || '(No text captured)'}
+          </p>
+          {isEditing ? (
+            <div className="mt-2 space-y-1.5">
+              <textarea
+                value={editingNoteValue}
+                onChange={(e) => onEditValueChange(e.target.value)}
+                placeholder="Add a note..."
+                rows={2}
+                className={`w-full text-[11.5px] border ${border.default} rounded-lg px-2 py-1.5 resize-none outline-none focus:ring-1 focus:ring-slate-300 ${text.body}`}
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSaveNote(highlight.id)}
+                  className="text-[11px] font-medium px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 flex items-center gap-1"
+                >
+                  <Check className="w-3 h-3" /> Save
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelEdit}
+                  className="text-[11px] font-medium px-2 py-1 rounded text-slate-600 hover:bg-slate-100 flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {highlight.note?.content && (
+                <p className={`text-[11.5px] ${text.muted} mt-2 leading-snug italic`}>
+                  {highlight.note.content}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => onStartEdit(highlight)}
+                className="mt-1.5 text-[11px] text-slate-500 hover:text-slate-700 flex items-center gap-1"
+              >
+                <Pencil className="w-3 h-3" />
+                {highlight.note?.content ? 'Edit note' : 'Add note'}
+              </button>
+            </>
+          )}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded"
+              style={{ color: hex, backgroundColor: hexToRgba(hex, 0.08) }}
+            >
+              {displayName}
+            </span>
+            <span className="text-[10px] text-slate-400">p.{highlight.page_number}</span>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onCopy(highlight)}
+                className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                title="Copy"
+                aria-label="Copy"
+              >
+                <Copy className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(highlight.id)}
+                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                title="Delete"
+                aria-label="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function SummaryPage() {
@@ -184,177 +156,356 @@ export default function SummaryPage() {
 
   const [view, setView] = useState('sequence');
   const [search, setSearch] = useState('');
-  const [activeFilters, setActiveFilters] = useState([]);
-  const [hoveredId, setHoveredId] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [copiedSelected, setCopiedSelected] = useState(false);
+  const [activeFilters, setActiveFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
-  const [editingNoteId, setEditingNoteId] = useState(null);
-  const [editingNoteValue, setEditingNoteValue] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [copiedSelected, setCopiedSelected] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [pendingDeleteHighlight, setPendingDeleteHighlight] = useState(null);
   const [pendingDeleteSelected, setPendingDeleteSelected] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
-  const exportRef = useRef(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingNoteValue, setEditingNoteValue] = useState('');
 
-  useEffect(() => {
-    if (!showExport) return;
-    const handler = (e) => {
-      if (exportRef.current && !exportRef.current.contains(e.target)) setShowExport(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [showExport]);
-
-  const { data: document, isLoading: docLoading, isError: docError } = useQuery({
+  const {
+    data: document,
+    isLoading: docLoading,
+    isError: docError,
+  } = useQuery({
     queryKey: ['document', id],
-    queryFn: async () => (await documentsAPI.get(id)).data,
+    queryFn: async () => {
+      const { data } = await documentsAPI.get(id);
+      return data;
+    },
     enabled: !!id,
   });
 
   const { data: highlights = [] } = useQuery({
     queryKey: ['highlights', id],
-    queryFn: async () => (await documentsAPI.highlights(id)).data,
+    queryFn: async () => {
+      const { data } = await documentsAPI.highlights(id);
+      return data;
+    },
     enabled: !!id,
   });
 
   const { data: lenses = [] } = useQuery({
     queryKey: ['lenses'],
-    queryFn: async () => (await lensesAPI.list()).data,
+    queryFn: async () => {
+      const { data } = await lensesAPI.list();
+      return data;
+    },
   });
 
   const currentLens = useMemo(() => {
     if (!lenses.length) return null;
-    if (document?.highlight_preset != null)
+    if (document?.highlight_preset != null) {
       return lenses.find((p) => p.id === document.highlight_preset) ?? null;
+    }
     return lenses.find((p) => p.is_system) ?? lenses[0] ?? null;
   }, [lenses, document?.highlight_preset]);
 
   const lensColors = useMemo(
-    () => currentLens?.colors ?? document?.highlight_preset_detail?.colors ?? [],
-    [currentLens?.colors, document?.highlight_preset_detail?.colors],
+    () =>
+      currentLens?.colors ?? document?.highlight_preset_detail?.colors ?? [],
+    [currentLens?.colors, document?.highlight_preset_detail?.colors]
   );
 
-  const colorLabels = document?.color_labels || {};
-  const lensColorMap = useLensColorMap(lensColors);
-
-  const colorKeys = useMemo(() => {
+  const documentColorKeys = useMemo(() => {
     if (lensColors?.length) return lensColors.map((c) => c.key);
-    return HIGHLIGHT_COLOR_KEYS;
-  }, [lensColors]);
+    const keys = Object.keys(document?.color_labels || {});
+    return keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS];
+  }, [lensColors, document?.color_labels]);
 
-  const deleteHighlight = useMutation({
-    mutationFn: (highlightId) => documentsAPI.deleteHighlight(id, highlightId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['highlights', id] }),
-  });
-
-  const updateNote = useMutation({
-    mutationFn: ({ highlightId, note }) => documentsAPI.updateHighlight(id, highlightId, { note }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['highlights', id] });
-      setEditingNoteId(null);
-      setEditingNoteValue('');
+  const deleteHighlightMutation = useMutation({
+    mutationFn: ({ documentId, highlightId }) =>
+      documentsAPI.deleteHighlight(documentId, highlightId),
+    onSuccess: (_, { documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['highlights', documentId] });
     },
   });
 
-  const toggleFilter = useCallback((key) => {
-    setActiveFilters((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  }, []);
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ documentId, highlightId, note }) =>
+      documentsAPI.updateHighlight(documentId, highlightId, { note }),
+    onSuccess: (_, { documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['highlights', documentId] });
+    },
+  });
 
-  const toggleSelect = useCallback((hId) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(hId)) next.delete(hId);
-      else next.add(hId);
-      return next;
-    });
-  }, []);
+  const filteredHighlights = useMemo(() => {
+    let list = highlights || [];
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (h) =>
+          (h.highlighted_text && h.highlighted_text.toLowerCase().includes(q)) ||
+          (h.note?.content && h.note.content.toLowerCase().includes(q))
+      );
+    }
+    if (activeFilters.size > 0) {
+      list = list.filter((h) => activeFilters.has(h.color));
+    }
+    return list;
+  }, [highlights, search, activeFilters]);
 
-  const toggleCollapse = useCallback((section) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) next.delete(section);
-      else next.add(section);
-      return next;
-    });
-  }, []);
-
-  const handleExport = useCallback(async (format) => {
-    setShowExport(false);
-    const rows = buildAnnotationRows(highlights, colorLabels, lensColors, lensColorMap, colorKeys);
-    const grouped = buildGroupedByTopic(rows, colorKeys, colorLabels, lensColors, lensColorMap);
-    const fname = document?.filename || 'Document';
-    if (format === 'docx') await exportDocx(fname, rows, grouped);
-    else if (format === 'pdf') await exportPdf(fname, rows, grouped);
-    else exportJson(fname, rows);
-  }, [highlights, colorLabels, lensColors, lensColorMap, colorKeys, document?.filename]);
-
-  const counts = useMemo(() => {
-    const c = {};
-    highlights.forEach((h) => {
-      c[h.color] = (c[h.color] || 0) + 1;
-    });
-    return c;
-  }, [highlights]);
-
-  const filtered = useMemo(() => {
-    return highlights.filter((h) => {
-      if (activeFilters.length > 0 && !activeFilters.includes(h.color)) return false;
-      if (search.trim()) {
-        const s = search.toLowerCase();
-        return (
-          h.highlighted_text?.toLowerCase().includes(s) ||
-          h.note?.content?.toLowerCase().includes(s)
-        );
-      }
-      return true;
-    });
-  }, [highlights, activeFilters, search]);
-
-  const sequenceList = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      if (a.page_number !== b.page_number) return a.page_number - b.page_number;
-      return new Date(a.created_at) - new Date(b.created_at);
-    });
-  }, [filtered]);
+  const sequenceList = useMemo(() => filteredHighlights, [filteredHighlights]);
 
   const groupedByTopic = useMemo(() => {
-    if (view !== 'topic') return [];
     const groups = {};
-    filtered.forEach((h) => {
-      if (!groups[h.color]) groups[h.color] = [];
-      groups[h.color].push(h);
-    });
-    return colorKeys
-      .map((key) => ({
-        colorKey: key,
-        topic: getColorDisplayName(key, colorLabels, lensColors),
-        hex: getHex(key, lensColorMap),
-        items: (groups[key] || []).sort((a, b) => {
-          if (a.page_number !== b.page_number) return a.page_number - b.page_number;
-          return new Date(a.created_at) - new Date(b.created_at);
-        }),
-      }))
-      .filter((g) => g.items.length > 0);
-  }, [view, filtered, colorKeys, colorLabels, lensColors, lensColorMap]);
-
-  const groupedByPage = useMemo(() => {
-    if (view !== 'page') return [];
-    const groups = {};
-    filtered.forEach((h) => {
-      const key = h.page_number;
+    for (const h of filteredHighlights) {
+      const key = h.color ?? 'uncategorized';
       if (!groups[key]) groups[key] = [];
       groups[key].push(h);
+    }
+    return groups;
+  }, [filteredHighlights]);
+
+  const groupedByPage = useMemo(() => {
+    const groups = {};
+    for (const h of filteredHighlights) {
+      const key = `page-${h.page_number ?? 0}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(h);
+    }
+    const keys = Object.keys(groups).sort(
+      (a, b) => parseInt(a.replace('page-', ''), 10) - parseInt(b.replace('page-', ''), 10)
+    );
+    return keys.map((k) => ({ key: k, page: parseInt(k.replace('page-', ''), 10), items: groups[k] }));
+  }, [filteredHighlights]);
+
+  const toggleFilter = useCallback((colorKey) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(colorKey)) next.delete(colorKey);
+      else next.add(colorKey);
+      return next;
     });
-    return Object.entries(groups)
-      .map(([page, items]) => ({
-        page: Number(page),
-        items: items.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
-      }))
-      .sort((a, b) => a.page - b.page);
-  }, [view, filtered]);
+  }, []);
+
+  const toggleSection = useCallback((sectionKey) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionKey)) next.delete(sectionKey);
+      else next.add(sectionKey);
+      return next;
+    });
+  }, []);
+
+  const toggleSelect = useCallback((highlightId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const sid = String(highlightId);
+      if (next.has(sid)) next.delete(sid);
+      else next.add(sid);
+      return next;
+    });
+  }, []);
+
+  const handleCopySelected = useCallback(async () => {
+    const selected = highlights.filter((h) => selectedIds.has(String(h.id)));
+    const text = selected
+      .map(
+        (h) =>
+          `${h.highlighted_text || ''}${h.note?.content ? `\n  Note: ${h.note.content}` : ''}`
+      )
+      .join('\n\n');
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopiedSelected(true);
+      setTimeout(() => setCopiedSelected(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  }, [highlights, selectedIds]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (!id) return;
+    setPendingDeleteSelected(true);
+  }, [id]);
+
+  const confirmBulkDelete = useCallback(async () => {
+    if (!id) return;
+    setDeletingSelected(true);
+    try {
+      for (const sid of selectedIds) {
+        await documentsAPI.deleteHighlight(id, sid);
+      }
+      queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+      setSelectedIds(new Set());
+      setPendingDeleteSelected(false);
+    } catch (err) {
+      console.error('Failed to delete highlights', err);
+    } finally {
+      setDeletingSelected(false);
+    }
+  }, [id, selectedIds, queryClient]);
+
+  const handleExportJSON = useCallback(() => {
+    const payload = {
+      filename: document?.filename,
+      exportedAt: new Date().toISOString(),
+      highlights: filteredHighlights.map((h) => ({
+        id: h.id,
+        page_number: h.page_number,
+        color: h.color,
+        highlighted_text: h.highlighted_text,
+        note: h.note?.content,
+        created_at: h.created_at,
+        updated_at: h.updated_at,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url;
+    a.download = `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  }, [document?.filename, filteredHighlights]);
+
+  const handleExportDocx = useCallback(async () => {
+    try {
+      const { Document, Packer, Paragraph, TextRun } = await import('docx');
+      const { saveAs } = await import('file-saver');
+      const children = [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: document?.filename ?? 'Document Summary',
+              bold: true,
+              size: 28,
+            }),
+          ],
+          spacing: { after: 200 },
+        }),
+      ];
+      for (const h of filteredHighlights) {
+        const colorDisplay = getColorDisplayName(h.color, document?.color_labels, lensColors);
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `[${colorDisplay}] p.${h.page_number}`,
+                bold: true,
+                size: 20,
+              }),
+            ],
+            spacing: { before: 120, after: 60 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: h.highlighted_text || '', size: 22 })],
+            spacing: { after: 60 },
+          })
+        );
+        if (h.note?.content) {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: `Note: ${h.note.content}`, italics: true, size: 20 }),
+              ],
+              spacing: { after: 120 },
+            })
+          );
+        }
+      }
+      const doc = new Document({
+        sections: [{ children }],
+      });
+      const blob = await Packer.toBlob(doc);
+      saveAs(
+        blob,
+        `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.docx`
+      );
+      setShowExport(false);
+    } catch (err) {
+      console.error('Export docx failed', err);
+    }
+  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
+
+  const handleExportPdf = useCallback(async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const { saveAs } = await import('file-saver');
+      const doc = new jsPDF();
+      let y = 20;
+      doc.setFontSize(16);
+      doc.text(document?.filename ?? 'Document Summary', 20, y);
+      y += 12;
+      for (const h of filteredHighlights) {
+        const colorDisplay = getColorDisplayName(h.color, document?.color_labels, lensColors);
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text(`[${colorDisplay}] p.${h.page_number}`, 20, y);
+        y += 6;
+        doc.setFont(undefined, 'normal');
+        const lines = doc.splitTextToSize(h.highlighted_text || '', 170);
+        doc.text(lines, 20, y);
+        y += lines.length * 5 + 4;
+        if (h.note?.content) {
+          doc.setFont(undefined, 'italic');
+          doc.text(`Note: ${h.note.content}`, 20, y);
+          y += 6;
+          doc.setFont(undefined, 'normal');
+        }
+        y += 8;
+      }
+      const blob = doc.output('blob');
+      saveAs(blob, `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.pdf`);
+      setShowExport(false);
+    } catch (err) {
+      console.error('Export pdf failed', err);
+    }
+  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
+
+  const handleStartEditNote = (h) => {
+    setEditingNoteId(h.id);
+    setEditingNoteValue(h.note?.content ?? '');
+  };
+
+  const handleSaveNote = (highlightId) => {
+    if (!id) return;
+    updateNoteMutation.mutate({
+      documentId: id,
+      highlightId,
+      note: editingNoteValue.trim() || '',
+    });
+    setEditingNoteId(null);
+    setEditingNoteValue('');
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteValue('');
+  };
+
+  const handleCopyHighlight = (h) => {
+    const text = `${h.highlighted_text || ''}${h.note?.content ? `\n  Note: ${h.note.content}` : ''}`;
+    navigator.clipboard?.writeText(text).catch(console.error);
+  };
+
+  const handleDeleteHighlight = (highlightId) => {
+    setPendingDeleteHighlight(highlightId);
+  };
+
+  const confirmDeleteSingle = useCallback(async () => {
+    if (!id || !pendingDeleteHighlight) return;
+    await documentsAPI.deleteHighlight(id, pendingDeleteHighlight);
+    queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(String(pendingDeleteHighlight));
+      return next;
+    });
+    setPendingDeleteHighlight(null);
+  }, [id, pendingDeleteHighlight, queryClient]);
 
   if (!id) {
     navigate('/', { replace: true });
@@ -363,642 +514,419 @@ export default function SummaryPage() {
 
   if (docLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+      <div className={`${pageWrapper} flex items-center justify-center min-h-[50vh]`}>
+        <Loader2 className={`w-8 h-8 ${text.muted} animate-spin`} />
       </div>
     );
   }
 
-  if (docError || !document) {
+  if (docError || (!document && !docLoading)) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">Document not found</h2>
-        <button type="button" onClick={() => navigate('/')} className="bg-slate-800 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-slate-700">
-          Back
+      <div className={`${pageWrapper} flex flex-col items-center justify-center min-h-[50vh]`}>
+        <h2 className={`text-lg font-semibold ${text.heading} mb-2`}>Document not found</h2>
+        <p className={`text-sm ${text.secondary} mb-4`}>
+          It may have been deleted or you don&apos;t have access to it.
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            navigate(document?.project ? `/project/${document.project}` : '/')
+          }
+          className={btnPrimary}
+        >
+          Back to project
         </button>
       </div>
     );
   }
 
-  const globalSeqMap = new Map();
-  [...highlights]
-    .sort((a, b) => {
-      if (a.page_number !== b.page_number) return a.page_number - b.page_number;
-      return new Date(a.created_at) - new Date(b.created_at);
-    })
-    .forEach((h, i) => globalSeqMap.set(h.id, i + 1));
+  const colorKeysForFilter =
+    lensColors?.length > 0
+      ? lensColors.map((c) => c.key)
+      : documentColorKeys?.length > 0
+        ? documentColorKeys
+        : HIGHLIGHT_COLOR_KEYS;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFB]" style={{ fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
-      {/* Sticky header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50" style={{ padding: '16px 32px' }}>
-        <div className="max-w-[1060px] mx-auto">
-          {/* Top row */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(`/document/${id}`)}
-                className="text-slate-500 hover:text-slate-700 text-sm flex items-center gap-1"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </button>
-              <div className="w-px h-5 bg-slate-200" />
-              <div>
-                <h1 className="text-[16px] font-semibold text-slate-900 tracking-tight">Summary</h1>
-                <p className="text-xs text-slate-400 truncate max-w-[300px]">{document.filename}</p>
-              </div>
-            </div>
-
-            {/* Export button */}
-            <div className="relative" ref={exportRef}>
-              <button
-                type="button"
-                onClick={() => setShowExport((v) => !v)}
-                disabled={!highlights.length}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-slate-800 text-white text-[13px] font-medium hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Export
-              </button>
-              {showExport && (
-                <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg py-1.5 z-50 min-w-[200px]">
-                  {[
-                    { key: 'docx', icon: FileText, label: 'Word (.docx)', desc: 'Formatted summary' },
-                    { key: 'pdf', icon: FileDown, label: 'PDF (.pdf)', desc: 'Print-ready export' },
-                    { key: 'json', icon: Braces, label: 'JSON (.json)', desc: 'Structured data' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => handleExport(opt.key)}
-                      className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors"
-                    >
-                      <opt.icon className="w-4 h-4 text-slate-400 shrink-0" />
-                      <div>
-                        <div className="text-[13px] font-medium text-slate-800">{opt.label}</div>
-                        <div className="text-[11px] text-slate-400">{opt.desc}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Annotation count dots */}
-          <div className="flex items-center gap-1.5 mt-3 mb-3.5">
-            <span className="text-xs font-semibold text-slate-600">
-              {highlights.length} annotation{highlights.length !== 1 ? 's' : ''}
-            </span>
-            <span className="text-slate-300 mx-0.5">—</span>
-            {colorKeys.map((key) => {
-              const count = counts[key] || 0;
-              if (!count) return null;
-              const hex = getHex(key, lensColorMap);
-              return (
-                <span key={key} className="flex items-center gap-1">
-                  <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: hex }} />
-                  <span className="text-[11px] text-slate-500">{count}</span>
-                </span>
-              );
-            })}
-          </div>
-
-          {/* Controls row */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* View tabs */}
-            <div className="flex bg-slate-100 rounded-md p-0.5">
-              {[
-                { key: 'sequence', label: 'Sequence' },
-                { key: 'topic', label: 'Topic' },
-                { key: 'page', label: 'Page' },
-              ].map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setView(t.key)}
-                  className={`px-3 py-1.5 rounded text-[12.5px] font-medium transition-all ${
-                    view === t.key
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 flex-1 max-w-[280px]">
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search annotations..."
-                className="border-0 bg-transparent outline-none text-[12.5px] text-slate-900 w-full placeholder:text-slate-400"
-              />
-              {search && (
-                <button type="button" onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Selection actions */}
-            {selectedIds.size > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 rounded-md border border-blue-200">
-                <span className="text-xs font-medium text-blue-600">{selectedIds.size} selected</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const selected = highlights.filter((h) => selectedIds.has(h.id));
-                    const text = selected
-                      .map((h) => `"${h.highlighted_text}" — p.${h.page_number}`)
-                      .join('\n\n\n');
-                    try {
-                      await navigator.clipboard?.writeText(text);
-                      setCopiedSelected(true);
-                      setTimeout(() => setCopiedSelected(false), 2000);
-                    } catch (_) {}
-                  }}
-                  className="text-[11px] font-medium text-blue-600 border border-blue-300 rounded px-2 py-0.5 hover:bg-blue-100"
-                >
-                  {copiedSelected ? 'Copied' : 'Copy selected'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingDeleteSelected(true)}
-                  className="text-[11px] font-medium text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-100"
-                >
-                  Delete selected
-                </button>
-                <button type="button" onClick={() => setSelectedIds(new Set())} className="text-blue-400 hover:text-blue-600">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Category filters */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {colorKeys.map((key) => {
-              const count = counts[key] || 0;
-              if (!count) return null;
-              const hex = getHex(key, lensColorMap);
-              const name = getColorDisplayName(key, colorLabels, lensColors);
-              const active = activeFilters.length === 0 || activeFilters.includes(key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleFilter(key)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all"
-                  style={{
-                    borderColor: active ? hex : '#E2E8F0',
-                    background: active ? hexToRgba(hex, 0.08) : '#fff',
-                    opacity: active ? 1 : 0.5,
-                  }}
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: hex }} />
-                  <span className="text-xs font-medium" style={{ color: active ? hex : '#94A3B8' }}>{name}</span>
-                  <span
-                    className="text-[11px] font-semibold px-1.5 rounded"
-                    style={{
-                      color: active ? hex : '#CBD5E1',
-                      background: active ? hexToRgba(hex, 0.1) : '#F8FAFC',
-                    }}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+    <div className={`min-h-screen ${bg.page}`}>
+      <header className={`${headerBar} px-4 py-2.5 flex items-center justify-between shrink-0`}>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(document?.project ? `/project/${document.project}` : `/document/${id}`)}
+            className={btnIcon}
+            title="Back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <h1 className={`text-base font-semibold ${text.heading}`}>Summary</h1>
+            <p className={`text-xs ${text.muted} truncate max-w-xs`}>{document?.filename}</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Content */}
-      <div className="max-w-[1060px] mx-auto" style={{ padding: '24px 32px 60px 64px' }}>
-        {!highlights.length ? (
-          <div className="text-center py-16 text-slate-400 text-sm">
-            <p>No highlights yet.</p>
-            <p className="mt-1">Select text in the document to create highlights, then return here.</p>
-            <button
-              type="button"
-              onClick={() => navigate(`/document/${id}`)}
-              className="bg-slate-800 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-slate-700 mt-4"
-            >
-              Open document
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-slate-400 text-sm">
-            No annotations match your search.
-          </div>
-        ) : view === 'sequence' ? (
-          <div className="flex flex-col gap-2">
-            {sequenceList.map((h) => (
-              <AnnotationCard
-                key={h.id}
-                h={h}
-                seq={globalSeqMap.get(h.id)}
-                showCategory
-                lensColorMap={lensColorMap}
-                colorLabels={colorLabels}
-                lensColors={lensColors}
-                hovered={hoveredId === h.id}
-                selected={selectedIds.has(h.id)}
-                onHover={setHoveredId}
-                onLeave={() => setHoveredId(null)}
-                onSelect={toggleSelect}
-                onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
-                deleting={deleteHighlight.isPending}
-                editingNoteId={editingNoteId}
-                editingNoteValue={editingNoteValue}
-                onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
-                onChangeNote={setEditingNoteValue}
-                onSaveNote={() => updateNote.mutate({ highlightId: editingNoteId, note: editingNoteValue.trim() })}
-                onCancelNote={() => { setEditingNoteId(null); setEditingNoteValue(''); }}
-                savingNote={updateNote.isPending}
-              />
+      <main className="p-4 max-w-3xl mx-auto">
+        {/* View tabs, search, export - all in one row */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="flex gap-2 bg-slate-100 rounded-lg p-1">
+            {[
+              { key: 'sequence', label: 'Sequence' },
+              { key: 'topic', label: 'Topic' },
+              { key: 'page', label: 'Page' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                className={`px-2.5 py-1 text-sm font-medium rounded-md transition-all ${
+                  view === key
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                    : `${text.secondary} hover:text-slate-700`
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        ) : view === 'topic' ? (
-          <div className="flex flex-col gap-5">
-            {groupedByTopic.map(({ colorKey, topic, hex, items }) => {
-              const collapsed = collapsedSections.has(colorKey);
-              return (
-                <div key={colorKey}>
-                  <button
-                    type="button"
-                    onClick={() => toggleCollapse(colorKey)}
-                    className="flex items-center gap-2 w-full pb-2.5 sticky top-[160px] z-10"
-                  >
-                    <ChevronRight
-                      className="w-4 h-4 text-slate-500 transition-transform"
-                      style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
-                    />
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hex }} />
-                    <span className="text-sm font-semibold text-slate-900">{topic}</span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-1.5 rounded">{items.length}</span>
-                  </button>
-                  {!collapsed && (
-                    <div className="flex flex-col gap-2">
-                      {items.map((h) => (
-                        <AnnotationCard
-                          key={h.id}
-                          h={h}
-                          seq={globalSeqMap.get(h.id)}
-                          showCategory={false}
-                          lensColorMap={lensColorMap}
-                          colorLabels={colorLabels}
-                          lensColors={lensColors}
-                          hovered={hoveredId === h.id}
-                          selected={selectedIds.has(h.id)}
-                          onHover={setHoveredId}
-                          onLeave={() => setHoveredId(null)}
-                          onSelect={toggleSelect}
-                          onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
-                          deleting={deleteHighlight.isPending}
-                          editingNoteId={editingNoteId}
-                          editingNoteValue={editingNoteValue}
-                          onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
-                          onChangeNote={setEditingNoteValue}
-                          onSaveNote={() => updateNote.mutate({ highlightId: editingNoteId, note: editingNoteValue.trim() })}
-                          onCancelNote={() => { setEditingNoteId(null); setEditingNoteValue(''); }}
-                          savingNote={updateNote.isPending}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+
+          <div className="relative flex-1 min-w-[200px] max-w-[360px]">
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+              strokeWidth={2}
+            />
+            <input
+              type="text"
+              placeholder="Search highlights..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`w-full pl-9 pr-3 py-1.5 text-sm border ${border.default} rounded-lg ${bg.surface} outline-none ${text.body} placeholder:text-slate-400`}
+            />
           </div>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {groupedByPage.map(({ page, items }) => {
-              const key = `p${page}`;
-              const collapsed = collapsedSections.has(key);
-              return (
-                <div key={key}>
+
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowExport((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body}`}
+            >
+              Export
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {showExport && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowExport(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className={`absolute right-0 top-full mt-1 z-20 py-1 rounded-lg border ${border.default} ${bg.surface} shadow-lg min-w-[160px]`}
+                >
                   <button
                     type="button"
-                    onClick={() => toggleCollapse(key)}
-                    className="flex items-center gap-2 pb-2.5 sticky top-[160px] z-10"
+                    onClick={handleExportDocx}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
                   >
-                    <ChevronRight
-                      className="w-4 h-4 text-slate-500 transition-transform"
-                      style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
-                    />
-                    <span className="text-sm font-semibold text-slate-900">Page {page}</span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-100 px-1.5 rounded">{items.length}</span>
+                    <FileText className="w-4 h-4" /> DOCX
                   </button>
-                  {!collapsed && (
-                    <div className="flex flex-col gap-2">
-                      {items.map((h) => (
-                        <AnnotationCard
-                          key={h.id}
-                          h={h}
-                          seq={globalSeqMap.get(h.id)}
-                          showCategory
-                          lensColorMap={lensColorMap}
-                          colorLabels={colorLabels}
-                          lensColors={lensColors}
-                          hovered={hoveredId === h.id}
-                          selected={selectedIds.has(h.id)}
-                          onHover={setHoveredId}
-                          onLeave={() => setHoveredId(null)}
-                          onSelect={toggleSelect}
-                          onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
-                          deleting={deleteHighlight.isPending}
-                          editingNoteId={editingNoteId}
-                          editingNoteValue={editingNoteValue}
-                          onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
-                          onChangeNote={setEditingNoteValue}
-                          onSaveNote={() => updateNote.mutate({ highlightId: editingNoteId, note: editingNoteValue.trim() })}
-                          onCancelNote={() => { setEditingNoteId(null); setEditingNoteValue(''); }}
-                          savingNote={updateNote.isPending}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                  >
+                    <FileDown className="w-4 h-4" /> PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportJSON}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                  >
+                    <Braces className="w-4 h-4" /> JSON
+                  </button>
                 </div>
-              );
-            })}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Selection actions */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className={`text-sm ${text.secondary}`}>
+              {selectedIds.size} selected
+            </span>
+            <button
+              type="button"
+              onClick={handleCopySelected}
+              className="text-[11px] font-medium text-blue-600 border border-blue-300 rounded px-2 py-0.5 hover:bg-blue-50 flex items-center gap-1"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {copiedSelected ? 'Copied' : 'Copy selected'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteSelected}
+              className="text-[11px] font-medium text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-50 flex items-center gap-1"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete selected
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-blue-400 hover:text-blue-600 flex items-center gap-1"
+              aria-label="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
-      </div>
 
-      {/* Delete highlight modal */}
+        {/* Color filter pills */}
+        <div className="flex flex-wrap gap-1.5 mb-6">
+          {colorKeysForFilter.map((key) => {
+            const count = (highlights || []).filter((h) => h.color === key).length;
+            if (!count) return null;
+            const hex = getHex(key, lensColors);
+            const name = getColorDisplayName(key, document?.color_labels, lensColors);
+            const isActive = activeFilters.size === 0 || activeFilters.has(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleFilter(key)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all text-[11px] font-semibold"
+                style={{
+                  borderColor: isActive ? hex : '#E2E8F0',
+                  background: isActive ? hexToRgba(hex, 0.08) : '#fff',
+                  opacity: isActive ? 1 : 0.5,
+                }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: hex }}
+                />
+                <span>{name}</span>
+                <span className="opacity-80">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Annotation list */}
+        <div className="space-y-4">
+          {!filteredHighlights.length ? (
+            <div className={`py-12 text-center ${text.muted} text-sm`}>
+              <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p>No highlights yet.</p>
+              <p className="mt-1 text-xs">
+                Open the document and create highlights to see them here.
+              </p>
+            </div>
+          ) : view === 'sequence' ? (
+            <ul className="space-y-2">
+              {sequenceList.map((h) => (
+                <li key={h.id}>
+                  <AnnotationCard
+                    highlight={h}
+                    selected={selectedIds.has(String(h.id))}
+                    onToggleSelect={toggleSelect}
+                    lensColors={lensColors}
+                    colorLabels={document?.color_labels}
+                    editingNoteId={editingNoteId}
+                    editingNoteValue={editingNoteValue}
+                    onStartEdit={handleStartEditNote}
+                    onSaveNote={handleSaveNote}
+                    onCancelEdit={handleCancelEditNote}
+                    onEditValueChange={setEditingNoteValue}
+                    onCopy={handleCopyHighlight}
+                    onDelete={handleDeleteHighlight}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : view === 'topic' ? (
+            <div className="space-y-4">
+              {Object.entries(groupedByTopic).map(([topicKey, items]) => {
+                const hex = getHex(topicKey, lensColors);
+                const name = getColorDisplayName(topicKey, document?.color_labels, lensColors);
+                const sectionKey = `topic-${topicKey}`;
+                const isCollapsed = collapsedSections.has(sectionKey);
+                return (
+                  <div key={topicKey} className="border rounded-lg overflow-hidden" style={{ borderColor: hexToRgba(hex, 0.3) }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(sectionKey)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left font-semibold text-sm"
+                      style={{ backgroundColor: hexToRgba(hex, 0.1) }}
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 shrink-0" />
+                      )}
+                      <span style={{ color: hex }}>{name}</span>
+                      <span className="text-slate-500 text-xs">({items.length})</span>
+                    </button>
+                    {!isCollapsed && (
+                      <ul className="p-3 space-y-2 bg-white">
+                        {items.map((h) => (
+                          <li key={h.id}>
+                            <AnnotationCard
+                              highlight={h}
+                              selected={selectedIds.has(String(h.id))}
+                              onToggleSelect={toggleSelect}
+                              lensColors={lensColors}
+                              colorLabels={document?.color_labels}
+                              editingNoteId={editingNoteId}
+                              editingNoteValue={editingNoteValue}
+                              onStartEdit={handleStartEditNote}
+                              onSaveNote={handleSaveNote}
+                              onCancelEdit={handleCancelEditNote}
+                              onEditValueChange={setEditingNoteValue}
+                              onCopy={handleCopyHighlight}
+                              onDelete={handleDeleteHighlight}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupedByPage.map(({ key, page, items }) => {
+                const sectionKey = `page-${page}`;
+                const isCollapsed = collapsedSections.has(sectionKey);
+                return (
+                  <div key={key} className={`border ${border.default} rounded-lg overflow-hidden`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(sectionKey)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left font-semibold text-sm bg-slate-50"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 shrink-0" />
+                      )}
+                      Page {page}
+                      <span className={`text-xs ${text.muted}`}>({items.length})</span>
+                    </button>
+                    {!isCollapsed && (
+                      <ul className="p-3 space-y-2 bg-white">
+                        {items.map((h) => (
+                          <li key={h.id}>
+                            <AnnotationCard
+                              highlight={h}
+                              selected={selectedIds.has(String(h.id))}
+                              onToggleSelect={toggleSelect}
+                              lensColors={lensColors}
+                              colorLabels={document?.color_labels}
+                              editingNoteId={editingNoteId}
+                              editingNoteValue={editingNoteValue}
+                              onStartEdit={handleStartEditNote}
+                              onSaveNote={handleSaveNote}
+                              onCancelEdit={handleCancelEditNote}
+                              onEditValueChange={setEditingNoteValue}
+                              onCopy={handleCopyHighlight}
+                              onDelete={handleDeleteHighlight}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Single delete modal */}
       {pendingDeleteHighlight && (
         <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
-          onClick={() => !deleteHighlight.isPending && setPendingDeleteHighlight(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setPendingDeleteHighlight(null)}
         >
           <div
-            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+            <h3
+              className="text-base font-semibold text-slate-800 mb-2"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
               Delete highlight?
             </h3>
-            <p className="text-sm text-slate-600 mb-6">
-              This will permanently delete this annotation. This cannot be undone.
+            <p className="text-sm text-slate-600 mb-5">
+              This highlight will be permanently removed.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPendingDeleteHighlight(null)}
-                disabled={deleteHighlight.isPending}
-                className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteHighlight.mutate(pendingDeleteHighlight.id);
-                  setPendingDeleteHighlight(null);
-                }}
-                disabled={deleteHighlight.isPending}
-                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+                onClick={confirmDeleteSingle}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
               >
-                {deleteHighlight.isPending ? 'Deleting…' : 'Delete'}
+                Delete
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete selected modal */}
+      {/* Bulk delete modal */}
       {pendingDeleteSelected && (
         <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onClick={() => !deletingSelected && setPendingDeleteSelected(false)}
         >
           <div
-            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+            <h3
+              className="text-base font-semibold text-slate-800 mb-2"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
               Delete {selectedIds.size} highlight{selectedIds.size !== 1 ? 's' : ''}?
             </h3>
-            <p className="text-sm text-slate-600 mb-6">
-              This will permanently delete the selected annotations. This cannot be undone.
+            <p className="text-sm text-slate-600 mb-5">
+              The selected highlights will be permanently removed.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPendingDeleteSelected(false)}
                 disabled={deletingSelected}
-                className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  const idsToDelete = [...selectedIds];
-                  setDeletingSelected(true);
-                  try {
-                    for (const hid of idsToDelete) {
-                      await deleteHighlight.mutateAsync(hid);
-                    }
-                  } finally {
-                    setSelectedIds(new Set());
-                    setPendingDeleteSelected(false);
-                    setDeletingSelected(false);
-                  }
-                }}
+                onClick={confirmBulkDelete}
                 disabled={deletingSelected}
-                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-70 flex items-center gap-2"
               >
-                {deletingSelected ? 'Deleting…' : 'Delete'}
+                {deletingSelected && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function AnnotationCard({
-  h,
-  seq,
-  showCategory,
-  lensColorMap,
-  colorLabels,
-  lensColors,
-  hovered,
-  selected,
-  onHover,
-  onLeave,
-  onSelect,
-  onRequestDelete,
-  editingNoteId,
-  editingNoteValue,
-  onEditNote,
-  onChangeNote,
-  onSaveNote,
-  onCancelNote,
-  savingNote,
-  deleting,
-}) {
-  const [copied, setCopied] = useState(false);
-  const [cardBodyHovered, setCardBodyHovered] = useState(false);
-  const hex = getHex(h.color, lensColorMap);
-  const topic = getColorDisplayName(h.color, colorLabels, lensColors);
-  const isEditing = editingNoteId === h.id;
-
-  const handleCopy = (e) => {
-    e.stopPropagation();
-    navigator.clipboard?.writeText(`"${h.highlighted_text}" — p.${h.page_number}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const showCardActions = cardBodyHovered || isEditing;
-
-  return (
-    <div className="relative flex gap-2">
-      {/* Selection checkbox - hover here does NOT show Add a note */}
-      <div
-        className="shrink-0 pt-[14px]"
-        onMouseEnter={() => onHover?.(h.id)}
-        onMouseLeave={() => onLeave?.()}
-      >
-        <div
-          className="transition-opacity w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-all"
-          style={{
-            opacity: hovered || selected ? 1 : 0,
-            border: selected ? `2px solid ${hex}` : '2px solid #CBD5E1',
-            background: selected ? hex : '#fff',
-          }}
-          onClick={(e) => { e.stopPropagation(); onSelect?.(h.id); }}
-        >
-          {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-        </div>
-      </div>
-
-      {/* Card body - hover here DOES show Add a note */}
-      <div
-        className="flex-1 min-w-0 rounded-lg bg-white transition-all"
-        style={{
-          border: `1px solid ${hovered ? hexToRgba(hex, 0.3) : '#E8ECF0'}`,
-          borderLeft: `3px solid ${hex}`,
-          padding: '14px 16px 12px 16px',
-          boxShadow: hovered ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-        }}
-        onMouseEnter={() => { onHover?.(h.id); setCardBodyHovered(true); }}
-        onMouseLeave={() => { onLeave?.(); setCardBodyHovered(false); }}
-      >
-        {/* Quote text - preserve paragraph breaks as blank lines */}
-        <p className="text-[13.5px] leading-[1.55] text-slate-900 whitespace-pre-wrap" style={{ fontFamily: "'Charter', 'Georgia', serif" }}>
-          &ldquo;{h.highlighted_text || '(No text captured)'}&rdquo;
-        </p>
-
-        {/* Comment / note - only when hovering card body, not checkbox */}
-        {isEditing ? (
-          <div className="mt-2 space-y-1.5">
-            <textarea
-              value={editingNoteValue}
-              onChange={(e) => onChangeNote(e.target.value)}
-              rows={2}
-              autoFocus
-              className="w-full text-[12.5px] border border-slate-200 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
-              placeholder="Add a note..."
-            />
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={onSaveNote}
-                disabled={savingNote}
-                className="text-[11px] font-medium px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {savingNote ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                onClick={onCancelNote}
-                className="text-[11px] font-medium px-2 py-1 rounded text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : h.note?.content ? (
-          <p className="mt-2 text-[12.5px] leading-normal italic" style={{ color: hex }}>
-            {h.note.content}
-          </p>
-        ) : (
-          showCardActions && (
-            <button
-              type="button"
-              onClick={() => onEditNote(h.id)}
-              className="mt-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              + Add a note...
-            </button>
-          )
-        )}
-
-        {/* Meta row */}
-        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
-          {showCategory && (
-            <span
-              className="text-[11px] font-semibold px-2 py-0.5 rounded"
-              style={{
-                color: hex,
-                background: hexToRgba(hex, 0.08),
-              }}
-            >
-              {topic}
-            </span>
-          )}
-          <span className="text-[11px] font-medium text-slate-400">p.{h.page_number}</span>
-          {seq != null && <span className="text-[10px] text-slate-300">#{seq}</span>}
-
-          {/* Hover actions - only when hovering card body */}
-          <div
-            className="ml-auto flex gap-1 transition-opacity"
-            style={{ opacity: showCardActions ? 1 : 0 }}
-          >
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="flex items-center gap-1 text-[11px] border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
-              style={{ color: copied ? '#16A34A' : '#64748B' }}
-            >
-              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button
-              type="button"
-              onClick={() => onEditNote(h.id)}
-              className="flex items-center gap-1 text-[11px] text-slate-500 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
-            >
-              <Pencil className="w-3 h-3" />
-              Edit
-            </button>
-            {onRequestDelete && (
-              <button
-                type="button"
-                onClick={() => onRequestDelete(h)}
-                disabled={deleting}
-                className="flex items-center gap-1 text-[11px] text-red-600 border border-red-200 rounded px-2 py-0.5 hover:bg-red-50"
-              >
-                <Trash2 className="w-3 h-3" />
-                Delete
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
