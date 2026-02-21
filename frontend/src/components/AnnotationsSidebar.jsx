@@ -217,7 +217,7 @@ export default function AnnotationsSidebar({
                       />
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-xs leading-snug ${text.body} line-clamp-3`}
+                          className={`text-xs leading-snug ${text.body} whitespace-pre-wrap`}
                         >
                           {h.highlighted_text || '(No text captured)'}
                         </p>

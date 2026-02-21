@@ -139,20 +139,43 @@ function getSpanAtPoint(spans, pageX, pageY) {
   return best;
 }
 
-/** Build highlighted text with proper spacing between words. */
+/** Build highlighted text with proper spacing. Same line = space; next line = \n; paragraph gap = \n\n. */
 function buildHighlightedTextWithSpacing(selectedSpans) {
   if (!selectedSpans.length) return '';
+  // First pass: collect vertical gaps between consecutive lines to infer paragraph threshold
+  const lineGaps = [];
+  for (let i = 1; i < selectedSpans.length; i++) {
+    const span = selectedSpans[i];
+    const prev = selectedSpans[i - 1];
+    if ((span.lineIndex ?? 0) !== (prev.lineIndex ?? 0) && span.y > prev.y) {
+      lineGaps.push(span.y - prev.y);
+    }
+  }
+  const sortedGaps = lineGaps.length ? [...lineGaps].sort((a, b) => a - b) : [];
+  // Use 25th percentile so paragraph gaps don't inflate the threshold
+  const baselineGap = sortedGaps.length
+    ? sortedGaps[Math.floor(sortedGaps.length * 0.25)] || sortedGaps[0]
+    : null;
+
   let text = '';
   for (let i = 0; i < selectedSpans.length; i++) {
     const span = selectedSpans[i];
     if (i > 0) {
       const prev = selectedSpans[i - 1];
-      const sameLine = Math.abs(span.y - prev.y) < 6;
-      if (!sameLine) {
-        text += ' ';
-      } else {
+      const sameLine = (span.lineIndex ?? 0) === (prev.lineIndex ?? 0);
+      const verticalGap = span.y - prev.y;
+      const avgLineHeight = Math.max(8, (prev.h + span.h) / 2);
+      // Paragraph: gap ≥ 1.4× baseline line gap
+      const threshold = baselineGap != null ? baselineGap * 1.4 : avgLineHeight * 1.5;
+      const paragraphBreak = !sameLine && verticalGap >= threshold;
+
+      if (sameLine) {
         const gap = span.x - (prev.x + prev.w);
         if (gap > 1) text += ' ';
+      } else if (paragraphBreak) {
+        text += '\n\n';
+      } else {
+        text += '\n';
       }
     }
     text += span.text;

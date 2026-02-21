@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI } from '../lib/api';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName, hexToRgba } from '../lib/colors';
-import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, X, Download, FileText, FileDown, Braces } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, Trash2, X, Download, FileText, FileDown, Braces } from 'lucide-react';
 
 function useLensColorMap(lensColors) {
   return useMemo(() => {
@@ -187,10 +187,14 @@ export default function SummaryPage() {
   const [activeFilters, setActiveFilters] = useState([]);
   const [hoveredId, setHoveredId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [copiedSelected, setCopiedSelected] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
   const [showExport, setShowExport] = useState(false);
+  const [pendingDeleteHighlight, setPendingDeleteHighlight] = useState(null);
+  const [pendingDeleteSelected, setPendingDeleteSelected] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const exportRef = useRef(null);
 
   useEffect(() => {
@@ -238,6 +242,11 @@ export default function SummaryPage() {
     if (lensColors?.length) return lensColors.map((c) => c.key);
     return HIGHLIGHT_COLOR_KEYS;
   }, [lensColors]);
+
+  const deleteHighlight = useMutation({
+    mutationFn: (highlightId) => documentsAPI.deleteHighlight(id, highlightId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['highlights', id] }),
+  });
 
   const updateNote = useMutation({
     mutationFn: ({ highlightId, note }) => documentsAPI.updateHighlight(id, highlightId, { note }),
@@ -504,16 +513,27 @@ export default function SummaryPage() {
                 <span className="text-xs font-medium text-blue-600">{selectedIds.size} selected</span>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const selected = highlights.filter((h) => selectedIds.has(h.id));
                     const text = selected
                       .map((h) => `"${h.highlighted_text}" — p.${h.page_number}`)
-                      .join('\n\n');
-                    navigator.clipboard?.writeText(text);
+                      .join('\n\n\n');
+                    try {
+                      await navigator.clipboard?.writeText(text);
+                      setCopiedSelected(true);
+                      setTimeout(() => setCopiedSelected(false), 2000);
+                    } catch (_) {}
                   }}
                   className="text-[11px] font-medium text-blue-600 border border-blue-300 rounded px-2 py-0.5 hover:bg-blue-100"
                 >
-                  Copy selected
+                  {copiedSelected ? 'Copied' : 'Copy selected'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteSelected(true)}
+                  className="text-[11px] font-medium text-red-600 border border-red-300 rounded px-2 py-0.5 hover:bg-red-100"
+                >
+                  Delete selected
                 </button>
                 <button type="button" onClick={() => setSelectedIds(new Set())} className="text-blue-400 hover:text-blue-600">
                   <X className="w-3.5 h-3.5" />
@@ -594,6 +614,8 @@ export default function SummaryPage() {
                 onHover={setHoveredId}
                 onLeave={() => setHoveredId(null)}
                 onSelect={toggleSelect}
+                onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
+                deleting={deleteHighlight.isPending}
                 editingNoteId={editingNoteId}
                 editingNoteValue={editingNoteValue}
                 onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
@@ -639,6 +661,8 @@ export default function SummaryPage() {
                           onHover={setHoveredId}
                           onLeave={() => setHoveredId(null)}
                           onSelect={toggleSelect}
+                          onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
+                          deleting={deleteHighlight.isPending}
                           editingNoteId={editingNoteId}
                           editingNoteValue={editingNoteValue}
                           onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
@@ -689,6 +713,8 @@ export default function SummaryPage() {
                           onHover={setHoveredId}
                           onLeave={() => setHoveredId(null)}
                           onSelect={toggleSelect}
+                          onRequestDelete={(highlight) => setPendingDeleteHighlight(highlight)}
+                          deleting={deleteHighlight.isPending}
                           editingNoteId={editingNoteId}
                           editingNoteValue={editingNoteValue}
                           onEditNote={(hId) => { setEditingNoteId(hId); setEditingNoteValue(h.note?.content ?? ''); }}
@@ -706,6 +732,97 @@ export default function SummaryPage() {
           </div>
         )}
       </div>
+
+      {/* Delete highlight modal */}
+      {pendingDeleteHighlight && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
+          onClick={() => !deleteHighlight.isPending && setPendingDeleteHighlight(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Delete highlight?
+            </h3>
+            <p className="text-sm text-slate-600 mb-6">
+              This will permanently delete this annotation. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteHighlight(null)}
+                disabled={deleteHighlight.isPending}
+                className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteHighlight.mutate(pendingDeleteHighlight.id);
+                  setPendingDeleteHighlight(null);
+                }}
+                disabled={deleteHighlight.isPending}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+              >
+                {deleteHighlight.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete selected modal */}
+      {pendingDeleteSelected && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
+          onClick={() => !deletingSelected && setPendingDeleteSelected(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Delete {selectedIds.size} highlight{selectedIds.size !== 1 ? 's' : ''}?
+            </h3>
+            <p className="text-sm text-slate-600 mb-6">
+              This will permanently delete the selected annotations. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteSelected(false)}
+                disabled={deletingSelected}
+                className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const idsToDelete = [...selectedIds];
+                  setDeletingSelected(true);
+                  try {
+                    for (const hid of idsToDelete) {
+                      await deleteHighlight.mutateAsync(hid);
+                    }
+                  } finally {
+                    setSelectedIds(new Set());
+                    setPendingDeleteSelected(false);
+                    setDeletingSelected(false);
+                  }
+                }}
+                disabled={deletingSelected}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+              >
+                {deletingSelected ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -722,6 +839,7 @@ function AnnotationCard({
   onHover,
   onLeave,
   onSelect,
+  onRequestDelete,
   editingNoteId,
   editingNoteValue,
   onEditNote,
@@ -729,8 +847,10 @@ function AnnotationCard({
   onSaveNote,
   onCancelNote,
   savingNote,
+  deleting,
 }) {
   const [copied, setCopied] = useState(false);
+  const [cardBodyHovered, setCardBodyHovered] = useState(false);
   const hex = getHex(h.color, lensColorMap);
   const topic = getColorDisplayName(h.color, colorLabels, lensColors);
   const isEditing = editingNoteId === h.id;
@@ -742,123 +862,141 @@ function AnnotationCard({
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const showCardActions = cardBodyHovered || isEditing;
+
   return (
-    <div
-      className="relative rounded-lg bg-white transition-all"
-      style={{
-        border: `1px solid ${hovered ? hexToRgba(hex, 0.3) : '#E8ECF0'}`,
-        borderLeft: `3px solid ${hex}`,
-        padding: '14px 16px 12px 16px',
-        boxShadow: hovered ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-      }}
-      onMouseEnter={() => onHover?.(h.id)}
-      onMouseLeave={() => onLeave?.()}
-    >
-      {/* Selection checkbox */}
+    <div className="relative flex gap-2">
+      {/* Selection checkbox - hover here does NOT show Add a note */}
       <div
-        className="absolute transition-opacity"
-        style={{ top: 14, left: -32, opacity: hovered || selected ? 1 : 0 }}
+        className="shrink-0 pt-[14px]"
+        onMouseEnter={() => onHover?.(h.id)}
+        onMouseLeave={() => onLeave?.()}
       >
         <div
-          onClick={(e) => { e.stopPropagation(); onSelect?.(h.id); }}
-          className="w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-all"
+          className="transition-opacity w-[18px] h-[18px] rounded flex items-center justify-center cursor-pointer transition-all"
           style={{
+            opacity: hovered || selected ? 1 : 0,
             border: selected ? `2px solid ${hex}` : '2px solid #CBD5E1',
             background: selected ? hex : '#fff',
           }}
+          onClick={(e) => { e.stopPropagation(); onSelect?.(h.id); }}
         >
           {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
         </div>
       </div>
 
-      {/* Quote text */}
-      <p className="text-[13.5px] leading-[1.55] text-slate-900" style={{ fontFamily: "'Charter', 'Georgia', serif" }}>
-        &ldquo;{h.highlighted_text || '(No text captured)'}&rdquo;
-      </p>
-
-      {/* Comment / note */}
-      {isEditing ? (
-        <div className="mt-2 space-y-1.5">
-          <textarea
-            value={editingNoteValue}
-            onChange={(e) => onChangeNote(e.target.value)}
-            rows={2}
-            autoFocus
-            className="w-full text-[12.5px] border border-slate-200 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
-            placeholder="Add a note..."
-          />
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={onSaveNote}
-              disabled={savingNote}
-              className="text-[11px] font-medium px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50"
-            >
-              {savingNote ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              onClick={onCancelNote}
-              className="text-[11px] font-medium px-2 py-1 rounded text-slate-600 hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : h.note?.content ? (
-        <p className="mt-2 text-[12.5px] leading-normal italic" style={{ color: hex }}>
-          {h.note.content}
+      {/* Card body - hover here DOES show Add a note */}
+      <div
+        className="flex-1 min-w-0 rounded-lg bg-white transition-all"
+        style={{
+          border: `1px solid ${hovered ? hexToRgba(hex, 0.3) : '#E8ECF0'}`,
+          borderLeft: `3px solid ${hex}`,
+          padding: '14px 16px 12px 16px',
+          boxShadow: hovered ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+        }}
+        onMouseEnter={() => { onHover?.(h.id); setCardBodyHovered(true); }}
+        onMouseLeave={() => { onLeave?.(); setCardBodyHovered(false); }}
+      >
+        {/* Quote text - preserve paragraph breaks as blank lines */}
+        <p className="text-[13.5px] leading-[1.55] text-slate-900 whitespace-pre-wrap" style={{ fontFamily: "'Charter', 'Georgia', serif" }}>
+          &ldquo;{h.highlighted_text || '(No text captured)'}&rdquo;
         </p>
-      ) : (
-        hovered && (
-          <button
-            type="button"
-            onClick={() => onEditNote(h.id)}
-            className="mt-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-          >
-            + Add a note...
-          </button>
-        )
-      )}
 
-      {/* Meta row */}
-      <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
-        {showCategory && (
-          <span
-            className="text-[11px] font-semibold px-2 py-0.5 rounded"
-            style={{
-              color: hex,
-              background: hexToRgba(hex, 0.08),
-            }}
-          >
-            {topic}
-          </span>
+        {/* Comment / note - only when hovering card body, not checkbox */}
+        {isEditing ? (
+          <div className="mt-2 space-y-1.5">
+            <textarea
+              value={editingNoteValue}
+              onChange={(e) => onChangeNote(e.target.value)}
+              rows={2}
+              autoFocus
+              className="w-full text-[12.5px] border border-slate-200 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-slate-300 text-slate-800"
+              placeholder="Add a note..."
+            />
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={onSaveNote}
+                disabled={savingNote}
+                className="text-[11px] font-medium px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                {savingNote ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={onCancelNote}
+                className="text-[11px] font-medium px-2 py-1 rounded text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : h.note?.content ? (
+          <p className="mt-2 text-[12.5px] leading-normal italic" style={{ color: hex }}>
+            {h.note.content}
+          </p>
+        ) : (
+          showCardActions && (
+            <button
+              type="button"
+              onClick={() => onEditNote(h.id)}
+              className="mt-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              + Add a note...
+            </button>
+          )
         )}
-        <span className="text-[11px] font-medium text-slate-400">p.{h.page_number}</span>
-        {seq != null && <span className="text-[10px] text-slate-300">#{seq}</span>}
 
-        {/* Hover actions */}
-        <div
-          className="ml-auto flex gap-1 transition-opacity"
-          style={{ opacity: hovered ? 1 : 0 }}
-        >
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="flex items-center gap-1 text-[11px] border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
-            style={{ color: copied ? '#16A34A' : '#64748B' }}
+        {/* Meta row */}
+        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
+          {showCategory && (
+            <span
+              className="text-[11px] font-semibold px-2 py-0.5 rounded"
+              style={{
+                color: hex,
+                background: hexToRgba(hex, 0.08),
+              }}
+            >
+              {topic}
+            </span>
+          )}
+          <span className="text-[11px] font-medium text-slate-400">p.{h.page_number}</span>
+          {seq != null && <span className="text-[10px] text-slate-300">#{seq}</span>}
+
+          {/* Hover actions - only when hovering card body */}
+          <div
+            className="ml-auto flex gap-1 transition-opacity"
+            style={{ opacity: showCardActions ? 1 : 0 }}
           >
-            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onEditNote(h.id)}
-            className="flex items-center gap-1 text-[11px] text-slate-500 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
-          >
-            <Pencil className="w-3 h-3" />
-            Edit
-          </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1 text-[11px] border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
+              style={{ color: copied ? '#16A34A' : '#64748B' }}
+            >
+              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onEditNote(h.id)}
+              className="flex items-center gap-1 text-[11px] text-slate-500 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50"
+            >
+              <Pencil className="w-3 h-3" />
+              Edit
+            </button>
+            {onRequestDelete && (
+              <button
+                type="button"
+                onClick={() => onRequestDelete(h)}
+                disabled={deleting}
+                className="flex items-center gap-1 text-[11px] text-red-600 border border-red-200 rounded px-2 py-0.5 hover:bg-red-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                Delete
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
