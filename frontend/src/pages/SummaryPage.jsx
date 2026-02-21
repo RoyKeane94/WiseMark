@@ -1,9 +1,12 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsAPI, presetsAPI } from '../lib/api';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName, hexToRgba } from '../lib/colors';
-import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, X, Download, FileText, FileDown, Braces } from 'lucide-react';
+import { Document as DocxDocument, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle } from 'docx';
+import { jsPDF } from 'jspdf';
+import { saveAs } from 'file-saver';
 
 function usePresetColorMap(presetColors) {
   return useMemo(() => {
@@ -23,6 +26,153 @@ function getHex(colorKey, presetColorMap) {
   return def?.hex ?? def?.solid ?? '#94a3b8';
 }
 
+function hexToRgb(hex) {
+  const n = parseInt((hex || '#94a3b8').replace('#', ''), 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function buildAnnotationRows(highlights, colorLabels, presetColors, presetColorMap, colorKeys) {
+  const sorted = [...highlights].sort((a, b) => {
+    if (a.page_number !== b.page_number) return a.page_number - b.page_number;
+    return new Date(a.created_at) - new Date(b.created_at);
+  });
+  return sorted.map((h, i) => ({
+    seq: i + 1,
+    text: h.highlighted_text || '',
+    note: h.note?.content || '',
+    page: h.page_number,
+    category: getColorDisplayName(h.color, colorLabels, presetColors),
+    colorKey: h.color,
+    hex: getHex(h.color, presetColorMap),
+  }));
+}
+
+function buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetColorMap) {
+  const groups = {};
+  rows.forEach((r) => { (groups[r.colorKey] ??= []).push(r); });
+  return colorKeys
+    .map((key) => ({
+      topic: getColorDisplayName(key, colorLabels, presetColors),
+      hex: getHex(key, presetColorMap),
+      items: groups[key] || [],
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+async function exportDocx(filename, rows, grouped) {
+  const children = [];
+  children.push(new Paragraph({ text: filename, heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
+  children.push(new Paragraph({ text: `${rows.length} annotations`, spacing: { after: 300 }, style: 'Subtitle' }));
+
+  grouped.forEach(({ topic, hex, items }) => {
+    children.push(new Paragraph({
+      spacing: { before: 300, after: 100 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: hex.replace('#', '') } },
+      children: [new TextRun({ text: `${topic} (${items.length})`, bold: true, size: 24, color: hex.replace('#', '') })],
+    }));
+    items.forEach((r) => {
+      children.push(new Paragraph({
+        spacing: { before: 120, after: 40 },
+        children: [
+          new TextRun({ text: `"${r.text}"`, italics: true, size: 21 }),
+          new TextRun({ text: `  — p.${r.page}`, size: 18, color: '94A3B8' }),
+        ],
+      }));
+      if (r.note) {
+        children.push(new Paragraph({
+          spacing: { after: 60 },
+          children: [new TextRun({ text: r.note, size: 18, italics: true, color: hex.replace('#', '') })],
+        }));
+      }
+    });
+  });
+
+  const doc = new DocxDocument({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `${filename.replace(/\.pdf$/i, '')} — Summary.docx`);
+}
+
+function exportPdf(filename, rows, grouped) {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  const ensureSpace = (needed) => {
+    if (y + needed > pdf.internal.pageSize.getHeight() - margin) {
+      pdf.addPage();
+      y = margin;
+    }
+  };
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(16);
+  pdf.text(filename, margin, y);
+  y += 8;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  pdf.setTextColor(100);
+  pdf.text(`${rows.length} annotations`, margin, y);
+  y += 12;
+
+  grouped.forEach(({ topic, hex, items }) => {
+    ensureSpace(18);
+    const [r, g, b] = hexToRgb(hex);
+    pdf.setDrawColor(r, g, b);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, y, margin + contentW, y);
+    y += 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(r, g, b);
+    pdf.text(`${topic} (${items.length})`, margin, y);
+    y += 7;
+
+    items.forEach((row) => {
+      ensureSpace(14);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(30);
+      const lines = pdf.splitTextToSize(`"${row.text}"`, contentW - 10);
+      lines.forEach((line) => {
+        ensureSpace(5);
+        pdf.text(line, margin + 2, y);
+        y += 4.2;
+      });
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`p.${row.page}  #${row.seq}`, margin + 2, y);
+      y += 4;
+      if (row.note) {
+        ensureSpace(5);
+        pdf.setFont('helvetica', 'italic');
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(r, g, b);
+        const noteLines = pdf.splitTextToSize(row.note, contentW - 10);
+        noteLines.forEach((line) => {
+          ensureSpace(4.5);
+          pdf.text(line, margin + 2, y);
+          y += 4;
+        });
+      }
+      y += 3;
+    });
+    y += 4;
+  });
+
+  pdf.save(`${filename.replace(/\.pdf$/i, '')} — Summary.pdf`);
+}
+
+function exportJson(filename, rows) {
+  const blob = new Blob(
+    [JSON.stringify({ document: filename, exported_at: new Date().toISOString(), annotations: rows }, null, 2)],
+    { type: 'application/json' },
+  );
+  saveAs(blob, `${filename.replace(/\.pdf$/i, '')} — Summary.json`);
+}
+
 export default function SummaryPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -36,6 +186,17 @@ export default function SummaryPage() {
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
+  const [showExport, setShowExport] = useState(false);
+  const exportRef = useRef(null);
+
+  useEffect(() => {
+    if (!showExport) return;
+    const handler = (e) => {
+      if (exportRef.current && !exportRef.current.contains(e.target)) setShowExport(false);
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [showExport]);
 
   const { data: document, isLoading: docLoading, isError: docError } = useQuery({
     queryKey: ['document', id],
@@ -106,6 +267,16 @@ export default function SummaryPage() {
       return next;
     });
   }, []);
+
+  const handleExport = useCallback((format) => {
+    setShowExport(false);
+    const rows = buildAnnotationRows(highlights, colorLabels, presetColors, presetColorMap, colorKeys);
+    const grouped = buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetColorMap);
+    const fname = document?.filename || 'Document';
+    if (format === 'docx') exportDocx(fname, rows, grouped);
+    else if (format === 'pdf') exportPdf(fname, rows, grouped);
+    else exportJson(fname, rows);
+  }, [highlights, colorLabels, presetColors, presetColorMap, colorKeys, document?.filename]);
 
   const counts = useMemo(() => {
     const c = {};
@@ -225,6 +396,41 @@ export default function SummaryPage() {
                 <h1 className="text-[16px] font-semibold text-slate-900 tracking-tight">Summary</h1>
                 <p className="text-xs text-slate-400 truncate max-w-[300px]">{document.filename}</p>
               </div>
+            </div>
+
+            {/* Export button */}
+            <div className="relative" ref={exportRef}>
+              <button
+                type="button"
+                onClick={() => setShowExport((v) => !v)}
+                disabled={!highlights.length}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-slate-800 text-white text-[13px] font-medium hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+              {showExport && (
+                <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg py-1.5 z-50 min-w-[200px]">
+                  {[
+                    { key: 'docx', icon: FileText, label: 'Word (.docx)', desc: 'Formatted summary' },
+                    { key: 'pdf', icon: FileDown, label: 'PDF (.pdf)', desc: 'Print-ready export' },
+                    { key: 'json', icon: Braces, label: 'JSON (.json)', desc: 'Structured data' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => handleExport(opt.key)}
+                      className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <opt.icon className="w-4 h-4 text-slate-400 shrink-0" />
+                      <div>
+                        <div className="text-[13px] font-medium text-slate-800">{opt.label}</div>
+                        <div className="text-[11px] text-slate-400">{opt.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
