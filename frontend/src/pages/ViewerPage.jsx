@@ -110,14 +110,31 @@ export default function ViewerPage() {
   const handleHighlightCreated = useCallback(
     async (payload) => {
       if (!id) return;
+      const optimisticId = `_opt_${Date.now()}`;
+      const optimistic = {
+        id: optimisticId,
+        page_number: payload.page_number,
+        position_data: payload.position_data,
+        highlighted_text: payload.highlighted_text,
+        color: payload.color,
+        note: payload.comment ? { id: optimisticId, content: payload.comment } : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['highlights', id], (old = []) => [...old, optimistic]);
+      setPendingHighlight(null);
+      setPickerPosition(null);
+      setSelectionForPicker(null);
+
       try {
         await documentsAPI.createHighlight(id, payload);
         queryClient.invalidateQueries({ queryKey: ['highlights', id] });
-        setPendingHighlight(null);
-        setPickerPosition(null);
-        setSelectionForPicker(null);
       } catch (err) {
         console.error('Failed to save highlight', err);
+        queryClient.setQueryData(['highlights', id], (old = []) =>
+          old.filter((h) => h.id !== optimisticId)
+        );
       }
     },
     [id, queryClient]
@@ -358,10 +375,19 @@ export default function ViewerPage() {
               }}
               onHighlightDelete={async (highlightId) => {
                 if (!id) return;
-                await documentsAPI.deleteHighlight(id, highlightId);
-                queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                const prev = queryClient.getQueryData(['highlights', id]);
+                queryClient.setQueryData(['highlights', id], (old = []) =>
+                  old.filter((h) => String(h.id) !== String(highlightId))
+                );
                 if (String(activeHighlightId) === String(highlightId)) setActiveHighlightId(null);
                 if (String(hoveredHighlightId) === String(highlightId)) setHoveredHighlightId(null);
+                try {
+                  await documentsAPI.deleteHighlight(id, highlightId);
+                  queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                } catch (err) {
+                  console.error('Failed to delete highlight', err);
+                  queryClient.setQueryData(['highlights', id], prev);
+                }
               }}
             />
           )}

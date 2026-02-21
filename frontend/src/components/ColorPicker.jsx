@@ -58,8 +58,7 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
       setActiveColorKey(cat.colorKey);
       if (!isExpanded) {
         onSelect(cat.colorKey, '');
-        setJustSaved(true);
-        setTimeout(() => onClose(), 400);
+        onClose();
       }
     },
     [isExpanded, onSelect, onClose]
@@ -68,8 +67,7 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
   const handleSave = useCallback(() => {
     if (activeColorKey) {
       onSelect(activeColorKey, comment.trim() || undefined);
-      setJustSaved(true);
-      setTimeout(() => onClose(), 400);
+      onClose();
     }
   }, [activeColorKey, comment, onSelect, onClose]);
 
