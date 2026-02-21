@@ -241,7 +241,7 @@ export default function HighlightPresetsSection() {
       {/* --- Create preset modal --- */}
       {createStep > 0 && (
         <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
           onClick={() => !createPreset.isPending && resetCreate()}
         >
           <div
@@ -332,7 +332,7 @@ export default function HighlightPresetsSection() {
       {/* --- Add colour modal (for existing presets) --- */}
       {addColorPresetId && (
         <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
           onClick={() => !addColor.isPending && setAddColorPresetId(null)}
         >
           <div

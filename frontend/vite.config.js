@@ -14,4 +14,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+          pdf: ['pdfjs-dist'],
+        },
+      },
+    },
+  },
 })

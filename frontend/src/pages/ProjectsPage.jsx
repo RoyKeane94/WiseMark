@@ -114,7 +114,7 @@ function NewProjectModal({ onClose, onCreate, isPending, defaultColorIndex = 0 }
 
   return (
     <div
-      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000"
+      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000 cursor-pointer"
       onClick={onClose}
     >
       <div

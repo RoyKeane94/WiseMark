@@ -8,7 +8,7 @@ import HighlightPresetsSection from '../components/HighlightPresetsSection';
 function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
   return (
     <div
-      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000"
+      className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000 cursor-pointer"
       onClick={onClose}
     >
       <div
@@ -26,7 +26,7 @@ function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
             type="button"
             onClick={onClose}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+            className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 cursor-pointer"
           >
             Cancel
           </button>
@@ -34,7 +34,7 @@ function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+            className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70 cursor-pointer disabled:cursor-not-allowed"
           >
             {isDeleting ? (
               <>
@@ -88,7 +88,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => navigate('/app')}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
             title="Back to projects"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -100,7 +100,7 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={handleLogout}
-          className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+          className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
           title="Sign out"
         >
           <LogOut className="w-4 h-4" />
@@ -125,7 +125,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setShowDeleteModal(true)}
-            className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 border border-red-200 bg-white hover:bg-red-50"
+            className="px-4 py-2 text-sm font-medium rounded-lg text-red-600 border border-red-200 bg-white hover:bg-red-50 cursor-pointer"
           >
             Delete account
           </button>

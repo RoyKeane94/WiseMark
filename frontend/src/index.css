@@ -7,6 +7,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Ensure all interactive elements show pointer on hover */
+button:not(:disabled),
+a[href],
+label,
+select {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 #root {
   min-height: 100vh;
 }

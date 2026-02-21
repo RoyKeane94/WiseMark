@@ -4,9 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsAPI, presetsAPI } from '../lib/api';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName, hexToRgba } from '../lib/colors';
 import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, X, Download, FileText, FileDown, Braces } from 'lucide-react';
-import { Document as DocxDocument, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle } from 'docx';
-import { jsPDF } from 'jspdf';
-import { saveAs } from 'file-saver';
 
 function usePresetColorMap(presetColors) {
   return useMemo(() => {
@@ -60,6 +57,9 @@ function buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetC
 }
 
 async function exportDocx(filename, rows, grouped) {
+  const [{ Document: DocxDocument, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle }, { saveAs }] =
+    await Promise.all([import('docx'), import('file-saver')]);
+
   const children = [];
   children.push(new Paragraph({ text: filename, heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }));
   children.push(new Paragraph({ text: `${rows.length} annotations`, spacing: { after: 300 }, style: 'Subtitle' }));
@@ -92,7 +92,8 @@ async function exportDocx(filename, rows, grouped) {
   saveAs(blob, `${filename.replace(/\.pdf$/i, '')} — Summary.docx`);
 }
 
-function exportPdf(filename, rows, grouped) {
+async function exportPdf(filename, rows, grouped) {
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
   const margin = 18;
@@ -170,7 +171,10 @@ function exportJson(filename, rows) {
     [JSON.stringify({ document: filename, exported_at: new Date().toISOString(), annotations: rows }, null, 2)],
     { type: 'application/json' },
   );
-  saveAs(blob, `${filename.replace(/\.pdf$/i, '')} — Summary.json`);
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: `${filename.replace(/\.pdf$/i, '')} — Summary.json` });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function SummaryPage() {
@@ -268,13 +272,13 @@ export default function SummaryPage() {
     });
   }, []);
 
-  const handleExport = useCallback((format) => {
+  const handleExport = useCallback(async (format) => {
     setShowExport(false);
     const rows = buildAnnotationRows(highlights, colorLabels, presetColors, presetColorMap, colorKeys);
     const grouped = buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetColorMap);
     const fname = document?.filename || 'Document';
-    if (format === 'docx') exportDocx(fname, rows, grouped);
-    else if (format === 'pdf') exportPdf(fname, rows, grouped);
+    if (format === 'docx') await exportDocx(fname, rows, grouped);
+    else if (format === 'pdf') await exportPdf(fname, rows, grouped);
     else exportJson(fname, rows);
   }, [highlights, colorLabels, presetColors, presetColorMap, colorKeys, document?.filename]);
 
