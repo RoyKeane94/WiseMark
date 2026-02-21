@@ -39,17 +39,17 @@ export const projectsAPI = {
   delete: (id) => api.delete(`/projects/${id}/`),
 };
 
-export const presetsAPI = {
-  list: () => api.get('/presets/'),
-  get: (id) => api.get(`/presets/${id}/`),
-  create: (data) => api.post('/presets/', data),
-  update: (id, data) => api.patch(`/presets/${id}/`, data),
-  delete: (id) => api.delete(`/presets/${id}/`),
-  addColor: (presetId, data) => api.post(`/presets/${presetId}/colors/`, data),
-  updateColor: (presetId, colorId, data) =>
-    api.patch(`/presets/${presetId}/colors/${colorId}/`, data),
-  removeColor: (presetId, colorId) =>
-    api.delete(`/presets/${presetId}/colors/${colorId}/`),
+export const lensesAPI = {
+  list: () => api.get('/lenses/'),
+  get: (id) => api.get(`/lenses/${id}/`),
+  create: (data) => api.post('/lenses/', data),
+  update: (id, data) => api.patch(`/lenses/${id}/`, data),
+  delete: (id) => api.delete(`/lenses/${id}/`),
+  addColor: (lensId, data) => api.post(`/lenses/${lensId}/colors/`, data),
+  updateColor: (lensId, colorId, data) =>
+    api.patch(`/lenses/${lensId}/colors/${colorId}/`, data),
+  removeColor: (lensId, colorId) =>
+    api.delete(`/lenses/${lensId}/colors/${colorId}/`),
 };
 
 export const documentsAPI = {

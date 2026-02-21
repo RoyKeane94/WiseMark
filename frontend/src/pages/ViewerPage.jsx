@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { documentsAPI, presetsAPI } from '../lib/api';
+import { documentsAPI, lensesAPI } from '../lib/api';
 import { getPDFForDocument, calculateHash, storePDF } from '../lib/db';
 import { HIGHLIGHT_COLOR_KEYS } from '../lib/colors';
 import PDFRenderer from '../components/PDFRenderer';
 import AnnotationsSidebar from '../components/AnnotationsSidebar';
 import ColorPicker from '../components/ColorPicker';
-import EditPresetModal from '../components/EditPresetModal';
+import EditLensModal from '../components/EditPresetModal';
 import EditNotePopover from '../components/EditNotePopover';
 import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack } from 'lucide-react';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border, dividerV } from '../lib/theme';
@@ -31,7 +31,7 @@ export default function ViewerPage() {
   const [colorLabelsOpen, setColorLabelsOpen] = useState(false);
   const [openEditForHighlightId, setOpenEditForHighlightId] = useState(null);
   const [editPopover, setEditPopover] = useState(null);
-  const [pendingPresetSwitch, setPendingPresetSwitch] = useState(null);
+  const [pendingLensSwitch, setPendingLensSwitch] = useState(null);
 
   const {
     data: document,
@@ -74,33 +74,31 @@ export default function ViewerPage() {
     enabled: !!id,
   });
 
-  const { data: presets = [] } = useQuery({
-    queryKey: ['presets'],
+  const { data: lenses = [] } = useQuery({
+    queryKey: ['lenses'],
     queryFn: async () => {
-      const { data } = await presetsAPI.list();
+      const { data } = await lensesAPI.list();
       return data;
     },
   });
 
-  /** Full preset object (from presets list, includes color IDs for editing). */
-  const currentPreset = useMemo(() => {
-    if (!presets.length) return null;
+  const currentLens = useMemo(() => {
+    if (!lenses.length) return null;
     if (document?.highlight_preset != null) {
-      return presets.find((p) => p.id === document.highlight_preset) ?? null;
+      return lenses.find((p) => p.id === document.highlight_preset) ?? null;
     }
-    return presets.find((p) => p.is_system) ?? presets[0] ?? null;
-  }, [presets, document?.highlight_preset]);
+    return lenses.find((p) => p.is_system) ?? lenses[0] ?? null;
+  }, [lenses, document?.highlight_preset]);
 
-  /** Colours for this document: from preset when available, else from color_labels or default keys. */
-  const docPresetColors = useMemo(
-    () => (currentPreset?.colors ?? document?.highlight_preset_detail?.colors ?? []),
-    [currentPreset?.colors, document?.highlight_preset_detail?.colors]
+  const docLensColors = useMemo(
+    () => (currentLens?.colors ?? document?.highlight_preset_detail?.colors ?? []),
+    [currentLens?.colors, document?.highlight_preset_detail?.colors]
   );
   const documentColorKeys = useMemo(() => {
-    if (docPresetColors?.length) return docPresetColors.map((c) => c.key);
+    if (docLensColors?.length) return docLensColors.map((c) => c.key);
     const keys = Object.keys(document?.color_labels || {});
     return keys.length > 0 ? keys : [...HIGHLIGHT_COLOR_KEYS];
-  }, [docPresetColors, document?.color_labels]);
+  }, [docLensColors, document?.color_labels]);
 
   const updateDocMutation = useMutation({
     mutationFn: ({ documentId, payload }) => documentsAPI.update(documentId, payload),
@@ -259,28 +257,28 @@ export default function ViewerPage() {
           <p className={`text-sm font-medium ${text.heading} truncate max-w-xs`}>{document?.filename}</p>
         </div>
         <div className="flex items-center gap-2">
-          {presets.length > 0 && (
+          {lenses.length > 0 && (
             <select
-              value={document?.highlight_preset != null ? String(document.highlight_preset) : (presets.find((p) => p.is_system)?.id ?? '')}
+              value={document?.highlight_preset != null ? String(document.highlight_preset) : (lenses.find((p) => p.is_system)?.id ?? '')}
               onChange={(e) => {
                 const val = e.target.value;
-                const presetId = val === '' ? null : Number(val);
+                const lensId = val === '' ? null : Number(val);
                 if (!id) return;
                 if (highlights.length > 0) {
-                  setPendingPresetSwitch(presetId);
+                  setPendingLensSwitch(lensId);
                 } else {
                   updateDocMutation.mutate({
                     documentId: id,
-                    payload: { highlight_preset: presetId },
+                    payload: { highlight_preset: lensId },
                   });
                 }
               }}
               className={`text-xs rounded-lg border ${border.default} ${bg.surface} py-1.5 pl-2 pr-7 ${text.body} cursor-pointer max-w-44`}
-              title="Highlight colour preset"
+              title="Highlight lens"
             >
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+              {lenses.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
                 </option>
               ))}
             </select>
@@ -289,7 +287,7 @@ export default function ViewerPage() {
             type="button"
             onClick={() => setColorLabelsOpen(true)}
             className={btnIcon}
-            title="Edit preset"
+            title="Edit lens"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -340,7 +338,7 @@ export default function ViewerPage() {
               hoveredHighlightId={hoveredHighlightId}
               activeHighlightId={activeHighlightId}
               selectionForPicker={selectionForPicker}
-              presetColors={docPresetColors}
+              lensColors={docLensColors}
               onSelectionComplete={handleSelectionComplete}
               onNumPages={handleNumPages}
               onHighlightHover={setHoveredHighlightId}
@@ -374,7 +372,7 @@ export default function ViewerPage() {
               onClose={handlePickerClose}
               colorLabels={document?.color_labels}
               documentColorKeys={documentColorKeys}
-              presetColors={docPresetColors}
+              lensColors={docLensColors}
             />
           )}
           {editPopover && (
@@ -393,29 +391,29 @@ export default function ViewerPage() {
             />
           )}
           {colorLabelsOpen && (
-            <EditPresetModal
-              preset={currentPreset}
+            <EditLensModal
+              lens={currentLens}
               documentId={id}
               onClose={() => setColorLabelsOpen(false)}
             />
           )}
-          {pendingPresetSwitch !== null && (
+          {pendingLensSwitch !== null && (
             <div
               className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
-              onClick={() => setPendingPresetSwitch(null)}
+              onClick={() => setPendingLensSwitch(null)}
             >
               <div
                 className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-5"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 className="text-base font-semibold text-slate-800 mb-2">Switch preset?</h3>
+                <h3 className="text-base font-semibold text-slate-800 mb-2">Switch lens?</h3>
                 <p className="text-sm text-slate-600 mb-5">
-                  This document has <strong>{highlights.length}</strong> highlight{highlights.length !== 1 ? 's' : ''}. Switching presets will <strong>delete all existing highlights</strong> because the colour categories will change.
+                  This document has <strong>{highlights.length}</strong> highlight{highlights.length !== 1 ? 's' : ''}. Switching lenses will <strong>delete all existing highlights</strong> because the colour categories will change.
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setPendingPresetSwitch(null)}
+                    onClick={() => setPendingLensSwitch(null)}
                     className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
                   >
                     Cancel
@@ -423,8 +421,8 @@ export default function ViewerPage() {
                   <button
                     type="button"
                     onClick={async () => {
-                      const presetId = pendingPresetSwitch;
-                      setPendingPresetSwitch(null);
+                      const lensId = pendingLensSwitch;
+                      setPendingLensSwitch(null);
                       for (const h of highlights) {
                         await documentsAPI.deleteHighlight(id, h.id);
                       }
@@ -433,7 +431,7 @@ export default function ViewerPage() {
                       setHoveredHighlightId(null);
                       updateDocMutation.mutate({
                         documentId: id,
-                        payload: { highlight_preset: presetId },
+                        payload: { highlight_preset: lensId },
                       });
                     }}
                     className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
@@ -449,7 +447,7 @@ export default function ViewerPage() {
           <AnnotationsSidebar
             highlights={highlights}
             colorLabels={document?.color_labels}
-            presetColors={docPresetColors}
+            lensColors={docLensColors}
             documentColorKeys={documentColorKeys}
             activeHighlightId={activeHighlightId}
             onScrollToPage={handleScrollToPage}

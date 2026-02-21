@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { projectsAPI, authAPI } from '../lib/api';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2, LogOut, Palette } from 'lucide-react';
+import HighlightLensesSection from '../components/HighlightPresetsSection';
 
 const COLORS = [
   '#f59e0b',
@@ -186,6 +187,7 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
   const [showModal, setShowModal] = useState(false);
+  const [showLenses, setShowLenses] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data: user } = useQuery({
@@ -272,23 +274,34 @@ export default function ProjectsPage() {
       {/* Content */}
       <div className="max-w-[720px] mx-auto px-6 py-10" style={{ fontFamily: "'DM Sans', sans-serif" }}>
         <div className="flex items-start justify-between mb-2">
-          <h1
-            className="m-0 text-[28px] text-slate-950"
-            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
-          >
-            Projects
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1
+              className="m-0 text-[28px] text-slate-950"
+              style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
+            >
+              Projects
+            </h1>
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors hover:bg-slate-700"
+              style={{ background: '#1e293b', fontFamily: "'DM Sans', sans-serif" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New project
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors hover:bg-slate-700"
-            style={{ background: '#1e293b', fontFamily: "'DM Sans', sans-serif" }}
+            onClick={() => setShowLenses(true)}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            New project
+            <Palette className="w-4 h-4" />
+            Your Lenses
           </button>
         </div>
 
@@ -379,6 +392,20 @@ export default function ProjectsPage() {
           isPending={createProject.isPending}
           defaultColorIndex={projects.length % COLORS.length}
         />
+      )}
+
+      {showLenses && (
+        <div
+          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000 cursor-pointer"
+          onClick={() => setShowLenses(false)}
+        >
+          <div
+            className="w-full max-w-[560px] mx-4 max-h-[85vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <HighlightLensesSection />
+          </div>
+        </div>
       )}
     </div>
   );

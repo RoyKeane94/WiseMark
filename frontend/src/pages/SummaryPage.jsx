@@ -1,24 +1,24 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { documentsAPI, presetsAPI } from '../lib/api';
+import { documentsAPI, lensesAPI } from '../lib/api';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName, hexToRgba } from '../lib/colors';
 import { ArrowLeft, Loader2, Search, ChevronRight, Copy, Check, Pencil, X, Download, FileText, FileDown, Braces } from 'lucide-react';
 
-function usePresetColorMap(presetColors) {
+function useLensColorMap(lensColors) {
   return useMemo(() => {
     const map = {};
-    if (presetColors?.length) {
-      presetColors.forEach((c) => {
+    if (lensColors?.length) {
+      lensColors.forEach((c) => {
         map[c.key] = { hex: c.hex, displayName: c.display_name };
       });
     }
     return map;
-  }, [presetColors]);
+  }, [lensColors]);
 }
 
-function getHex(colorKey, presetColorMap) {
-  if (presetColorMap[colorKey]) return presetColorMap[colorKey].hex;
+function getHex(colorKey, lensColorMap) {
+  if (lensColorMap[colorKey]) return lensColorMap[colorKey].hex;
   const def = HIGHLIGHT_COLORS[colorKey];
   return def?.hex ?? def?.solid ?? '#94a3b8';
 }
@@ -28,7 +28,7 @@ function hexToRgb(hex) {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
-function buildAnnotationRows(highlights, colorLabels, presetColors, presetColorMap, colorKeys) {
+function buildAnnotationRows(highlights, colorLabels, lensColors, lensColorMap, colorKeys) {
   const sorted = [...highlights].sort((a, b) => {
     if (a.page_number !== b.page_number) return a.page_number - b.page_number;
     return new Date(a.created_at) - new Date(b.created_at);
@@ -38,19 +38,19 @@ function buildAnnotationRows(highlights, colorLabels, presetColors, presetColorM
     text: h.highlighted_text || '',
     note: h.note?.content || '',
     page: h.page_number,
-    category: getColorDisplayName(h.color, colorLabels, presetColors),
+    category: getColorDisplayName(h.color, colorLabels, lensColors),
     colorKey: h.color,
-    hex: getHex(h.color, presetColorMap),
+    hex: getHex(h.color, lensColorMap),
   }));
 }
 
-function buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetColorMap) {
+function buildGroupedByTopic(rows, colorKeys, colorLabels, lensColors, lensColorMap) {
   const groups = {};
   rows.forEach((r) => { (groups[r.colorKey] ??= []).push(r); });
   return colorKeys
     .map((key) => ({
-      topic: getColorDisplayName(key, colorLabels, presetColors),
-      hex: getHex(key, presetColorMap),
+      topic: getColorDisplayName(key, colorLabels, lensColors),
+      hex: getHex(key, lensColorMap),
       items: groups[key] || [],
     }))
     .filter((g) => g.items.length > 0);
@@ -214,30 +214,30 @@ export default function SummaryPage() {
     enabled: !!id,
   });
 
-  const { data: presets = [] } = useQuery({
-    queryKey: ['presets'],
-    queryFn: async () => (await presetsAPI.list()).data,
+  const { data: lenses = [] } = useQuery({
+    queryKey: ['lenses'],
+    queryFn: async () => (await lensesAPI.list()).data,
   });
 
-  const currentPreset = useMemo(() => {
-    if (!presets.length) return null;
+  const currentLens = useMemo(() => {
+    if (!lenses.length) return null;
     if (document?.highlight_preset != null)
-      return presets.find((p) => p.id === document.highlight_preset) ?? null;
-    return presets.find((p) => p.is_system) ?? presets[0] ?? null;
-  }, [presets, document?.highlight_preset]);
+      return lenses.find((p) => p.id === document.highlight_preset) ?? null;
+    return lenses.find((p) => p.is_system) ?? lenses[0] ?? null;
+  }, [lenses, document?.highlight_preset]);
 
-  const presetColors = useMemo(
-    () => currentPreset?.colors ?? document?.highlight_preset_detail?.colors ?? [],
-    [currentPreset?.colors, document?.highlight_preset_detail?.colors],
+  const lensColors = useMemo(
+    () => currentLens?.colors ?? document?.highlight_preset_detail?.colors ?? [],
+    [currentLens?.colors, document?.highlight_preset_detail?.colors],
   );
 
   const colorLabels = document?.color_labels || {};
-  const presetColorMap = usePresetColorMap(presetColors);
+  const lensColorMap = useLensColorMap(lensColors);
 
   const colorKeys = useMemo(() => {
-    if (presetColors?.length) return presetColors.map((c) => c.key);
+    if (lensColors?.length) return lensColors.map((c) => c.key);
     return HIGHLIGHT_COLOR_KEYS;
-  }, [presetColors]);
+  }, [lensColors]);
 
   const updateNote = useMutation({
     mutationFn: ({ highlightId, note }) => documentsAPI.updateHighlight(id, highlightId, { note }),
@@ -274,13 +274,13 @@ export default function SummaryPage() {
 
   const handleExport = useCallback(async (format) => {
     setShowExport(false);
-    const rows = buildAnnotationRows(highlights, colorLabels, presetColors, presetColorMap, colorKeys);
-    const grouped = buildGroupedByTopic(rows, colorKeys, colorLabels, presetColors, presetColorMap);
+    const rows = buildAnnotationRows(highlights, colorLabels, lensColors, lensColorMap, colorKeys);
+    const grouped = buildGroupedByTopic(rows, colorKeys, colorLabels, lensColors, lensColorMap);
     const fname = document?.filename || 'Document';
     if (format === 'docx') await exportDocx(fname, rows, grouped);
     else if (format === 'pdf') await exportPdf(fname, rows, grouped);
     else exportJson(fname, rows);
-  }, [highlights, colorLabels, presetColors, presetColorMap, colorKeys, document?.filename]);
+  }, [highlights, colorLabels, lensColors, lensColorMap, colorKeys, document?.filename]);
 
   const counts = useMemo(() => {
     const c = {};
@@ -321,15 +321,15 @@ export default function SummaryPage() {
     return colorKeys
       .map((key) => ({
         colorKey: key,
-        topic: getColorDisplayName(key, colorLabels, presetColors),
-        hex: getHex(key, presetColorMap),
+        topic: getColorDisplayName(key, colorLabels, lensColors),
+        hex: getHex(key, lensColorMap),
         items: (groups[key] || []).sort((a, b) => {
           if (a.page_number !== b.page_number) return a.page_number - b.page_number;
           return new Date(a.created_at) - new Date(b.created_at);
         }),
       }))
       .filter((g) => g.items.length > 0);
-  }, [view, filtered, colorKeys, colorLabels, presetColors, presetColorMap]);
+  }, [view, filtered, colorKeys, colorLabels, lensColors, lensColorMap]);
 
   const groupedByPage = useMemo(() => {
     if (view !== 'page') return [];
@@ -447,7 +447,7 @@ export default function SummaryPage() {
             {colorKeys.map((key) => {
               const count = counts[key] || 0;
               if (!count) return null;
-              const hex = getHex(key, presetColorMap);
+              const hex = getHex(key, lensColorMap);
               return (
                 <span key={key} className="flex items-center gap-1">
                   <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: hex }} />
@@ -527,8 +527,8 @@ export default function SummaryPage() {
             {colorKeys.map((key) => {
               const count = counts[key] || 0;
               if (!count) return null;
-              const hex = getHex(key, presetColorMap);
-              const name = getColorDisplayName(key, colorLabels, presetColors);
+              const hex = getHex(key, lensColorMap);
+              const name = getColorDisplayName(key, colorLabels, lensColors);
               const active = activeFilters.length === 0 || activeFilters.includes(key);
               return (
                 <button
@@ -586,9 +586,9 @@ export default function SummaryPage() {
                 h={h}
                 seq={globalSeqMap.get(h.id)}
                 showCategory
-                presetColorMap={presetColorMap}
+                lensColorMap={lensColorMap}
                 colorLabels={colorLabels}
-                presetColors={presetColors}
+                lensColors={lensColors}
                 hovered={hoveredId === h.id}
                 selected={selectedIds.has(h.id)}
                 onHover={setHoveredId}
@@ -631,9 +631,9 @@ export default function SummaryPage() {
                           h={h}
                           seq={globalSeqMap.get(h.id)}
                           showCategory={false}
-                          presetColorMap={presetColorMap}
+                          lensColorMap={lensColorMap}
                           colorLabels={colorLabels}
-                          presetColors={presetColors}
+                          lensColors={lensColors}
                           hovered={hoveredId === h.id}
                           selected={selectedIds.has(h.id)}
                           onHover={setHoveredId}
@@ -681,9 +681,9 @@ export default function SummaryPage() {
                           h={h}
                           seq={globalSeqMap.get(h.id)}
                           showCategory
-                          presetColorMap={presetColorMap}
+                          lensColorMap={lensColorMap}
                           colorLabels={colorLabels}
-                          presetColors={presetColors}
+                          lensColors={lensColors}
                           hovered={hoveredId === h.id}
                           selected={selectedIds.has(h.id)}
                           onHover={setHoveredId}
@@ -714,9 +714,9 @@ function AnnotationCard({
   h,
   seq,
   showCategory,
-  presetColorMap,
+  lensColorMap,
   colorLabels,
-  presetColors,
+  lensColors,
   hovered,
   selected,
   onHover,
@@ -731,8 +731,8 @@ function AnnotationCard({
   savingNote,
 }) {
   const [copied, setCopied] = useState(false);
-  const hex = getHex(h.color, presetColorMap);
-  const topic = getColorDisplayName(h.color, colorLabels, presetColors);
+  const hex = getHex(h.color, lensColorMap);
+  const topic = getColorDisplayName(h.color, colorLabels, lensColors);
   const isEditing = editingNoteId === h.id;
 
   const handleCopy = (e) => {

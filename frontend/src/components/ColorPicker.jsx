@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { HIGHLIGHT_COLOR_KEYS, getColorDisplayName } from '../lib/colors';
 
-// Fallback when no preset from API; colorKey is the backend value.
+// Fallback when no lens from API; colorKey is the backend value.
 const CATEGORIES = [
   { colorKey: 'yellow', color: '#FBBF24', shortcut: '1' },
   { colorKey: 'green', color: '#34D399', shortcut: '2' },
@@ -10,10 +10,10 @@ const CATEGORIES = [
   { colorKey: 'orange', color: '#FB923C', shortcut: '5' },
 ];
 
-/** Build picker categories from API preset colors or fallback to documentColorKeys + CATEGORIES. */
-function buildCategories(presetColors, documentColorKeys) {
-  if (presetColors?.length) {
-    const sorted = [...presetColors].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+/** Build picker categories from API lens colors or fallback to documentColorKeys + CATEGORIES. */
+function buildCategories(lensColors, documentColorKeys) {
+  if (lensColors?.length) {
+    const sorted = [...lensColors].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     return sorted.map((c, i) => ({
       colorKey: c.key,
       color: c.hex,
@@ -28,7 +28,7 @@ function buildCategories(presetColors, documentColorKeys) {
   return CATEGORIES;
 }
 
-export default function ColorPicker({ position, onSelect, onClose, colorLabels, documentColorKeys, presetColors = [] }) {
+export default function ColorPicker({ position, onSelect, onClose, colorLabels, documentColorKeys, lensColors = [] }) {
   const popupRef = useRef(null);
   const commentRef = useRef(null);
   const [activeColorKey, setActiveColorKey] = useState(null);
@@ -37,14 +37,14 @@ export default function ColorPicker({ position, onSelect, onClose, colorLabels, 
   const [justSaved, setJustSaved] = useState(false);
 
   const categories = useMemo(
-    () => buildCategories(presetColors, documentColorKeys),
-    [presetColors, documentColorKeys]
+    () => buildCategories(lensColors, documentColorKeys),
+    [lensColors, documentColorKeys]
   );
   const safeCategories = categories.length > 0 ? categories : CATEGORIES;
 
   const getLabel = useCallback(
-    (colorKey) => getColorDisplayName(colorKey, colorLabels, presetColors),
-    [colorLabels, presetColors]
+    (colorKey) => getColorDisplayName(colorKey, colorLabels, lensColors),
+    [colorLabels, lensColors]
   );
 
   useEffect(() => {

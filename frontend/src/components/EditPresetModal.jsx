@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { presetsAPI } from '../lib/api';
+import { lensesAPI } from '../lib/api';
 import { text, border, bg } from '../lib/theme';
 import { X } from 'lucide-react';
 
@@ -11,23 +11,23 @@ const PALETTE = [
   '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#14b8a6',
 ];
 
-const MAX_COLORS = 10;
+const MAX_COLORS = 5;
 
-export default function EditPresetModal({ preset, documentId, onClose }) {
+export default function EditLensModal({ lens, documentId, onClose }) {
   const queryClient = useQueryClient();
-  const colors = preset?.colors ?? [];
-  const isSystem = !preset || preset.is_system;
+  const colors = lens?.colors ?? [];
+  const isSystem = !lens || lens.is_system;
 
   const [addingHex, setAddingHex] = useState(null);
   const [addingName, setAddingName] = useState('');
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['presets'] });
+    queryClient.invalidateQueries({ queryKey: ['lenses'] });
     queryClient.invalidateQueries({ queryKey: ['document', documentId] });
   };
 
   const addColor = useMutation({
-    mutationFn: (data) => presetsAPI.addColor(preset.id, data),
+    mutationFn: (data) => lensesAPI.addColor(lens.id, data),
     onSuccess: () => {
       invalidate();
       setAddingHex(null);
@@ -36,12 +36,12 @@ export default function EditPresetModal({ preset, documentId, onClose }) {
   });
 
   const removeColor = useMutation({
-    mutationFn: (colorId) => presetsAPI.removeColor(preset.id, colorId),
+    mutationFn: (colorId) => lensesAPI.removeColor(lens.id, colorId),
     onSuccess: invalidate,
   });
 
   const updateColor = useMutation({
-    mutationFn: ({ colorId, data }) => presetsAPI.updateColor(preset.id, colorId, data),
+    mutationFn: ({ colorId, data }) => lensesAPI.updateColor(lens.id, colorId, data),
     onSuccess: invalidate,
   });
 
@@ -70,20 +70,19 @@ export default function EditPresetModal({ preset, documentId, onClose }) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
-          <h3 className={`text-base font-semibold ${text.heading}`}>Edit preset</h3>
-          {preset && (
-            <p className={`text-xs ${text.muted} mt-0.5`}>{preset.name}</p>
+          <h3 className={`text-base font-semibold ${text.heading}`}>Edit lens</h3>
+          {lens && (
+            <p className={`text-xs ${text.muted} mt-0.5`}>{lens.name}</p>
           )}
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-auto flex-1 min-h-0">
           {isSystem ? (
             <p className={`text-sm ${text.secondary}`}>
-              System presets cannot be edited. Create a custom preset from Settings to customise colours.
+              Default lenses cannot be edited. Create a custom lens from Settings to customise colours.
             </p>
           ) : (
             <>
-              {/* Current colours with editable labels */}
               <div>
                 <p className={`text-xs ${text.muted} mb-2.5 uppercase tracking-wider font-medium`}>
                   Colours ({colors.length}/{MAX_COLORS})
@@ -120,9 +119,11 @@ export default function EditPresetModal({ preset, documentId, onClose }) {
                     </div>
                   ))}
                 </div>
+                <p className={`text-xs ${text.muted} mt-2.5 italic`}>
+                  Removing a colour will delete any highlights and comments using it.
+                </p>
               </div>
 
-              {/* Add colour */}
               {colors.length < MAX_COLORS && available.length > 0 && (
                 <div className="pt-3 border-t border-slate-100">
                   {addingHex ? (

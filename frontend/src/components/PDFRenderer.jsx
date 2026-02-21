@@ -191,7 +191,7 @@ export default function PDFRenderer({
   hoveredHighlightId = null,
   activeHighlightId = null,
   selectionForPicker = null,
-  presetColors: presetColorsProp = [],
+  lensColors: lensColorsProp = [],
   onSelectionComplete,
   onNumPages,
   onHighlightHover,
@@ -246,7 +246,7 @@ export default function PDFRenderer({
           hoveredHighlightId={hoveredHighlightId}
           activeHighlightId={activeHighlightId}
           selectionForPicker={selectionForPicker}
-          presetColors={presetColorsProp}
+          lensColors={lensColorsProp}
           onSelectionComplete={onSelectionComplete}
           onHighlightHover={onHighlightHover}
           onHighlightHoverEnd={onHighlightHoverEnd}
@@ -266,7 +266,7 @@ function PDFPage({
   hoveredHighlightId,
   activeHighlightId,
   selectionForPicker,
-  presetColors = [],
+  lensColors = [],
   onSelectionComplete,
   onHighlightHover,
   onHighlightHoverEnd,
@@ -481,9 +481,9 @@ function PDFPage({
         {/* Saved highlights */}
         {pageHighlights.map((h) => {
           const rects = h.position_data?.rects || [];
-          const presetC = (presetColors ?? []).find((c) => c.key === h.color);
+          const lensC = (lensColors ?? []).find((c) => c.key === h.color);
           const color = HIGHLIGHT_COLORS[h.color] || HIGHLIGHT_COLORS.yellow;
-          const hex = presetC?.hex ?? color?.hex ?? color?.solid;
+          const hex = lensC?.hex ?? color?.hex ?? color?.solid;
           const isHovered = hoveredHighlightId != null && String(h.id) === String(hoveredHighlightId);
           const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
           const bg = isHovered || isActive

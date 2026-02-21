@@ -13,18 +13,18 @@ function sortKeysByOrder(keys, order) {
   return [...keys].sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }
 
-export default function ColorLabelsModal({ colorLabels = {}, presetColors = [], documentId, onSave, onClose }) {
+export default function ColorLabelsModal({ colorLabels = {}, lensColors = [], documentId, onSave, onClose }) {
   const queryClient = useQueryClient();
   const formRef = useRef(null);
-  const presetKeys = presetColors?.map((c) => c.key) ?? HIGHLIGHT_COLOR_KEYS;
+  const lensKeys = lensColors?.map((c) => c.key) ?? HIGHLIGHT_COLOR_KEYS;
   const [documentColorKeys, setDocumentColorKeys] = useState(() => {
     const keys = Object.keys(colorLabels || {});
-    return keys.length > 0 ? keys : (presetKeys.length > 0 ? [...presetKeys] : [...HIGHLIGHT_COLOR_KEYS]);
+    return keys.length > 0 ? keys : (lensKeys.length > 0 ? [...lensKeys] : [...HIGHLIGHT_COLOR_KEYS]);
   });
 
   useEffect(() => {
     const keys = Object.keys(colorLabels || {});
-    const defaultKeys = presetColors?.length ? presetColors.map((c) => c.key) : HIGHLIGHT_COLOR_KEYS;
+    const defaultKeys = lensColors?.length ? lensColors.map((c) => c.key) : HIGHLIGHT_COLOR_KEYS;
     setDocumentColorKeys(keys.length > 0 ? keys : [...defaultKeys]);
   }, [documentId, colorLabels]);
 
@@ -45,11 +45,11 @@ export default function ColorLabelsModal({ colorLabels = {}, presetColors = [], 
 
   const handleAddColor = (key) => {
     if (documentColorKeys.includes(key)) return;
-    setDocumentColorKeys((prev) => sortKeysByOrder([...prev, key], presetKeys));
+    setDocumentColorKeys((prev) => sortKeysByOrder([...prev, key], lensKeys));
   };
 
-  const availableToAdd = presetKeys.filter((k) => !documentColorKeys.includes(k));
-  const maxColors = presetColors?.length ?? 5;
+  const availableToAdd = lensKeys.filter((k) => !documentColorKeys.includes(k));
+  const maxColors = lensColors?.length ?? 5;
   const canAddMore = documentColorKeys.length < maxColors && availableToAdd.length > 0;
 
   const handleSubmit = (e) => {
@@ -88,9 +88,9 @@ export default function ColorLabelsModal({ colorLabels = {}, presetColors = [], 
         <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 overflow-auto flex-1 min-h-0">
           {documentColorKeys.map((key) => {
             const col = HIGHLIGHT_COLORS[key];
-            const presetCol = presetColors?.find((c) => c.key === key);
-            const defaultName = presetCol?.display_name ?? col?.name ?? key;
-            const hex = presetCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
+            const lensCol = lensColors?.find((c) => c.key === key);
+            const defaultName = lensCol?.display_name ?? col?.name ?? key;
+            const hex = lensCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
             const initialValue = (colorLabels && colorLabels[key]) ?? '';
             return (
               <div key={key} className="flex items-center gap-3">
@@ -137,9 +137,9 @@ export default function ColorLabelsModal({ colorLabels = {}, presetColors = [], 
               <div className="flex flex-wrap gap-2">
                 {availableToAdd.map((key) => {
                   const col = HIGHLIGHT_COLORS[key];
-                  const presetCol = presetColors?.find((c) => c.key === key);
-                  const hex = presetCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
-                  const label = presetCol?.display_name ?? col?.label ?? key;
+                  const lensCol = lensColors?.find((c) => c.key === key);
+                  const hex = lensCol?.hex ?? col?.hex ?? col?.solid ?? '#94a3b8';
+                  const label = lensCol?.display_name ?? col?.label ?? key;
                   return (
                     <button
                       key={key}

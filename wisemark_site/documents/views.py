@@ -30,8 +30,12 @@ def _preset_queryset(request):
     ).prefetch_related('colors').order_by('name')
 
 
+MAX_CUSTOM_LENSES = 3
+MAX_COLORS_PER_LENS = 5
+
+
 class HighlightPresetViewSet(viewsets.ModelViewSet):
-    """List system + user presets; create/update/delete user presets only."""
+    """List system + user lenses; create/update/delete user lenses only."""
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -43,24 +47,29 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
         return HighlightPresetSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        user = self.request.user
+        custom_count = HighlightPreset.objects.filter(user=user).count()
+        if custom_count >= MAX_CUSTOM_LENSES:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': f'You can create up to {MAX_CUSTOM_LENSES} custom lenses.'})
+        serializer.save(user=user)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.user_id is None:
             return Response(
-                {'detail': 'System presets cannot be deleted.'},
+                {'detail': 'System lenses cannot be deleted.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'], url_path='colors')
     def add_color(self, request, pk=None):
-        """Add a colour to a user-owned preset. System presets are read-only."""
+        """Add a colour to a user-owned lens. System lenses are read-only."""
         preset = self.get_object()
         if preset.user_id is None:
             return Response(
-                {'detail': 'Cannot add colours to system presets.'},
+                {'detail': 'Cannot add colours to system lenses.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         key = (request.data.get('key') or '').strip()
@@ -80,12 +89,12 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
             )
         if preset.colors.filter(key=key).exists():
             return Response(
-                {'key': [f'A colour with key "{key}" already exists in this preset.']},
+                {'key': [f'A colour with key "{key}" already exists in this lens.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if preset.colors.count() >= 10:
+        if preset.colors.count() >= MAX_COLORS_PER_LENS:
             return Response(
-                {'detail': 'Presets are limited to 10 colours.'},
+                {'detail': f'Lenses are limited to {MAX_COLORS_PER_LENS} colours.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         sort_order = preset.colors.count()
@@ -100,11 +109,11 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete', 'patch'], url_path=r'colors/(?P<color_pk>[^/.]+)')
     def manage_color(self, request, pk=None, color_pk=None):
-        """Update or remove a colour from a user-owned preset."""
+        """Update or remove a colour from a user-owned lens."""
         preset = self.get_object()
         if preset.user_id is None:
             return Response(
-                {'detail': 'Cannot modify system presets.'},
+                {'detail': 'Cannot modify system lenses.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         color = preset.colors.filter(pk=color_pk).first()

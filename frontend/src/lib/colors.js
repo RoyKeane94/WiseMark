@@ -19,17 +19,17 @@ export function hexToRgba(hex, alpha = 1) {
 }
 
 /**
- * Display name for a color: custom label from document, else preset display_name, else legacy default.
+ * Display name for a color: custom label from document, else lens display_name, else legacy default.
  * @param {string} colorKey
  * @param {Record<string, string>} [colorLabels] - document color_labels overrides
- * @param {{ key: string, display_name: string, hex: string }[]} [presetColors] - from document.highlight_preset_detail.colors
+ * @param {{ key: string, display_name: string, hex: string }[]} [lensColors] - from document.highlight_preset_detail.colors
  */
-export function getColorDisplayName(colorKey, colorLabels = {}, presetColors) {
+export function getColorDisplayName(colorKey, colorLabels = {}, lensColors) {
   if (colorLabels && typeof colorLabels[colorKey] === 'string' && colorLabels[colorKey].trim()) {
     return colorLabels[colorKey].trim();
   }
-  if (presetColors?.length) {
-    const p = presetColors.find((c) => c.key === colorKey);
+  if (lensColors?.length) {
+    const p = lensColors.find((c) => c.key === colorKey);
     if (p?.display_name) return p.display_name;
   }
   return (HIGHLIGHT_COLORS[colorKey] && HIGHLIGHT_COLORS[colorKey].name) || colorKey;

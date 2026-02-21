@@ -6,7 +6,7 @@ import { FileText, Search, Trash2, ChevronDown, ChevronRight } from 'lucide-reac
 export default function AnnotationsSidebar({
   highlights,
   colorLabels,
-  presetColors = [],
+  lensColors = [],
   documentColorKeys,
   activeHighlightId,
   onScrollToPage,
@@ -20,8 +20,8 @@ export default function AnnotationsSidebar({
   openEditForHighlightId,
   onClearOpenEditForHighlightId,
 }) {
-  const colorKeysForFilter = presetColors?.length > 0
-    ? presetColors.map((c) => c.key)
+  const colorKeysForFilter = lensColors?.length > 0
+    ? lensColors.map((c) => c.key)
     : (documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS);
   const [colorFilter, setColorFilter] = useState('all');
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false);
@@ -117,9 +117,9 @@ export default function AnnotationsSidebar({
                 {colorKeysForFilter.map((key) => {
                   const count = (highlights || []).filter((h) => h.color === key).length;
                   const def = HIGHLIGHT_COLORS[key];
-                  const presetHex = presetColors?.find((c) => c.key === key)?.hex;
-                  const hex = presetHex ?? def?.hex ?? def?.solid ?? '#94a3b8';
-                  const name = getColorDisplayName(key, colorLabels, presetColors);
+                  const lensHex = lensColors?.find((c) => c.key === key)?.hex;
+                  const hex = lensHex ?? def?.hex ?? def?.solid ?? '#94a3b8';
+                  const name = getColorDisplayName(key, colorLabels, lensColors);
                   const isActive = colorFilter === key;
                   return (
                     <button
@@ -179,8 +179,8 @@ export default function AnnotationsSidebar({
           <ul className="space-y-1.5">
             {filtered.map((h) => {
               const def = HIGHLIGHT_COLORS[h.color] || HIGHLIGHT_COLORS.yellow;
-              const presetC = presetColors?.find((c) => c.key === h.color);
-              const hex = presetC?.hex ?? def?.hex ?? def?.solid ?? '#94a3b8';
+              const lensC = lensColors?.find((c) => c.key === h.color);
+              const hex = lensC?.hex ?? def?.hex ?? def?.solid ?? '#94a3b8';
               const noteContent = h.note?.content;
               const isActive = activeHighlightId != null && String(h.id) === String(activeHighlightId);
               return (
@@ -277,7 +277,7 @@ export default function AnnotationsSidebar({
                           backgroundColor: `${hex}12`,
                         }}
                       >
-                        {getColorDisplayName(h.color, colorLabels, presetColors)}
+                        {getColorDisplayName(h.color, colorLabels, lensColors)}
                       </span>
                       <span className="text-[10px] text-slate-400">p.{h.page_number}</span>
                       {documentId && onHighlightDelete && (
