@@ -431,10 +431,10 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-3 text-[12.5px] text-slate-400 mb-6">
+        {/* Stats — light grey sans, match Projects page */}
+        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
           <span>{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
-          <span className="text-slate-200">·</span>
+          <span className="text-slate-300">·</span>
           <span>{totalAnnotations} annotation{totalAnnotations !== 1 ? 's' : ''}</span>
         </div>
 

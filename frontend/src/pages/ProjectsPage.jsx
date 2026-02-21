@@ -300,12 +300,12 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Stats bar — small-caps label style */}
-        <div className="flex items-center gap-3 text-xs text-slate-400 mb-6 uppercase" style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.08em' }}>
+        {/* Stats bar — light grey sans */}
+        <div className="flex items-center gap-2 text-sm text-slate-500 mb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
           <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
-          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="text-slate-300">·</span>
           <span>{totalDocs} document{totalDocs !== 1 ? 's' : ''}</span>
-          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="text-slate-300">·</span>
           <span>{totalAnnotations} annotation{totalAnnotations !== 1 ? 's' : ''}</span>
         </div>
 
