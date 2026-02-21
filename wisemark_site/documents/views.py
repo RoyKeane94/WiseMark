@@ -151,11 +151,20 @@ class DocumentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Document.objects.filter(project__user=self.request.user)
+        qs = Document.objects.filter(project__user=self.request.user).annotate(
+            _annotation_count=Count('highlights'),
+        )
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        from django.utils import timezone
+        Document.objects.filter(pk=instance.pk).update(last_opened_at=timezone.now())
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     def perform_update(self, serializer):
         instance = serializer.save()

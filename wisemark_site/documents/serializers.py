@@ -116,6 +116,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     highlight_preset_detail = serializers.SerializerMethodField()
+    annotation_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -123,9 +124,15 @@ class DocumentSerializer(serializers.ModelSerializer):
             'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
             'storage_location', 'pdf_file', 's3_key',
             'color_labels', 'highlight_preset', 'highlight_preset_detail',
+            'annotation_count', 'last_opened_at',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail', 'annotation_count', 'last_opened_at']
+
+    def get_annotation_count(self, obj):
+        if hasattr(obj, '_annotation_count'):
+            return obj._annotation_count
+        return obj.highlights.count()
         extra_kwargs = {
             'pdf_file': {'write_only': True, 'read_only': False},
             's3_key': {'write_only': True, 'read_only': False},

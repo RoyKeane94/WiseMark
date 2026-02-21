@@ -107,10 +107,10 @@ export default function SettingsPage() {
         </button>
       </header>
 
-      <div className="max-w-[560px] mx-auto px-6 py-10">
+      <div className="max-w-[720px] mx-auto px-6 py-10">
         <h1
-          className="m-0 text-[28px] font-normal text-slate-950 tracking-tight"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
+          className="m-0 text-[28px] text-slate-950"
+          style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
         >
           Account settings
         </h1>

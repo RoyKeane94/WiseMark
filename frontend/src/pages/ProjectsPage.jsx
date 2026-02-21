@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { projectsAPI, authAPI } from '../lib/api';
-import { Loader2, LogOut, Palette } from 'lucide-react';
+import { Loader2, LogOut, Palette, ChevronRight } from 'lucide-react';
 import HighlightLensesSection from '../components/HighlightPresetsSection';
 
 const COLORS = [
@@ -48,55 +48,50 @@ function ProjectCard({ project, onOpen }) {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onOpen(project.id)}
-      className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-5 cursor-pointer transition-all duration-200"
+      className="flex items-center gap-3.5 rounded-xl bg-white px-4 py-3.5 cursor-pointer transition-shadow duration-200"
       style={{
-        boxShadow: hovered ? '0 4px 12px rgba(71,85,105,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
-        transform: hovered ? 'translateY(-1px)' : 'none',
-        background: hovered ? '#f8fafc' : '#fff',
+        borderTop: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
+        borderRight: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
+        borderBottom: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
+        borderLeft: `3px solid ${color}`,
+        boxShadow: hovered ? '0 2px 8px rgba(0,0,0,0.04)' : 'none',
+        background: hovered ? '#fafbfc' : '#fff',
       }}
     >
-      <div
-        className="shrink-0 rounded-sm"
-        style={{ width: 4, height: 48, background: color }}
-      />
       <div className="flex-1 min-w-0">
-        <div className="text-base font-normal text-slate-900 truncate" style={{ fontFamily: "'Instrument Serif', serif" }}>
+        <div
+          className="text-[14.5px] font-medium text-slate-900 truncate leading-snug"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
           {project.name}
         </div>
-        <div className="flex items-center gap-3 mt-1 text-[13px] text-slate-400" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-          <span className="flex items-center gap-1">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="text-[11.5px] text-slate-400" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             {docCount} {docCount === 1 ? 'doc' : 'docs'}
           </span>
-          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
-          <span className="flex items-center gap-1">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            {annCount} {annCount === 1 ? 'annotation' : 'annotations'}
+          <span className="text-slate-200">·</span>
+          <span className="text-[11.5px] text-slate-400" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            {formatLastOpened(project.updated_at)}
           </span>
         </div>
       </div>
-      <div className="text-[13px] text-slate-400 whitespace-nowrap shrink-0" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-        {formatLastOpened(project.updated_at)}
+
+      <div className="flex items-center gap-2.5 shrink-0">
+        {annCount > 0 ? (
+          <span className="text-xs font-medium text-slate-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            {annCount} note{annCount !== 1 ? 's' : ''}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-300 italic" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            No annotations
+          </span>
+        )}
       </div>
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke={hovered ? '#475569' : '#cbd5e1'}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="shrink-0 transition-colors"
-      >
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
+
+      <ChevronRight
+        className="w-4 h-4 shrink-0 transition-colors"
+        style={{ color: hovered ? '#475569' : '#cbd5e1' }}
+      />
     </div>
   );
 }
@@ -274,13 +269,13 @@ export default function ProjectsPage() {
       {/* Content */}
       <div className="max-w-[720px] mx-auto px-6 py-10" style={{ fontFamily: "'DM Sans', sans-serif" }}>
         <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <h1
-              className="m-0 text-[28px] text-slate-950"
-              style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
-            >
-              Projects
-            </h1>
+          <h1
+            className="m-0 text-[28px] text-slate-950"
+            style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
+          >
+            Projects
+          </h1>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowModal(true)}
@@ -293,16 +288,16 @@ export default function ProjectsPage() {
               </svg>
               New project
             </button>
+            <button
+              type="button"
+              onClick={() => setShowLenses(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
+              <Palette className="w-4 h-4" />
+              Your Lenses
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowLenses(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            <Palette className="w-4 h-4" />
-            Your Lenses
-          </button>
         </div>
 
         {/* Stats bar — small-caps label style */}

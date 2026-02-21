@@ -21,6 +21,8 @@ export default function HighlightLensesSection() {
   const [pickingHex, setPickingHex] = useState(null);
   const [pickingName, setPickingName] = useState('');
 
+  const [pendingDeleteLens, setPendingDeleteLens] = useState(null);
+
   const [addColorLensId, setAddColorLensId] = useState(null);
   const [addColorHex, setAddColorHex] = useState(null);
   const [addColorName, setAddColorName] = useState('');
@@ -139,9 +141,7 @@ export default function HighlightLensesSection() {
               {!l.is_system && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`Delete lens "${l.name}"?`)) deleteLens.mutate(l.id);
-                  }}
+                  onClick={() => setPendingDeleteLens(l)}
                   className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
                   title="Delete lens"
                 >
@@ -436,6 +436,47 @@ export default function HighlightLensesSection() {
                   {addColor.isPending ? 'Adding…' : 'Add'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteLens && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
+          onClick={() => !deleteLens.isPending && setPendingDeleteLens(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Delete lens?
+            </h3>
+            <p className="text-sm text-slate-600 mb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              This will permanently delete <strong>{pendingDeleteLens.name}</strong> and remove it from any documents using it.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteLens(null)}
+                disabled={deleteLens.isPending}
+                className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteLens.mutate(pendingDeleteLens.id, {
+                    onSuccess: () => setPendingDeleteLens(null),
+                  });
+                }}
+                disabled={deleteLens.isPending}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
+              >
+                {deleteLens.isPending ? 'Deleting…' : 'Delete lens'}
+              </button>
             </div>
           </div>
         </div>
