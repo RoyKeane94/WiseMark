@@ -1,10 +1,10 @@
 import { useState, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import useAuthStore from '../stores/authStore';
-import { documentsAPI, projectsAPI, authAPI, lensesAPI } from '../lib/api';
+import { documentsAPI, projectsAPI, lensesAPI } from '../lib/api';
 import { calculateHash, storePDF } from '../lib/db';
-import { Upload, Loader2, FileText, Trash2, Pencil, ArrowLeft, Check, X, LogOut, ChevronRight } from 'lucide-react';
+import { Upload, Loader2, FileText, Trash2, Pencil, Check, X, ChevronRight } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -351,12 +351,6 @@ export default function ProjectDetailPage() {
   };
   const cancelEditProjectName = () => { setEditingProjectName(false); setProjectName(''); };
 
-  const logout = useAuthStore((s) => s.logout);
-  const { data: user } = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => (await authAPI.me()).data,
-  });
-  const userInitial = (user?.email?.[0] || user?.username?.[0] || '?').toUpperCase();
   const projectColor = project?.color && COLORS.includes(project.color) ? project.color : project ? COLORS[project.id % COLORS.length] : COLORS[0];
 
   if (projectLoading || !project) {
@@ -374,23 +368,7 @@ export default function ProjectDetailPage() {
         rel="stylesheet"
       />
 
-      <header className="bg-white/92 backdrop-blur-md border-b border-slate-200 py-4 px-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => navigate('/app')} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Back to projects">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center text-white text-xs font-semibold">W</div>
-          <span className="text-[1.05rem] font-semibold text-slate-900" style={{ fontFamily: "'Instrument Serif', serif" }}>WiseMark</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => { logout(); navigate('/login', { replace: true }); }} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100" title="Sign out">
-            <LogOut className="w-4 h-4" />
-          </button>
-          <button type="button" onClick={() => navigate('/app/settings')} className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-[13px] font-semibold hover:bg-slate-600 transition-colors cursor-pointer" title="Account settings">
-            {userInitial}
-          </button>
-        </div>
-      </header>
+      <AppHeader showBack backTo="/app" />
 
       <div className="max-w-[720px] mx-auto px-6 py-10">
         {/* Project header */}

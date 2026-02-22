@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { authAPI } from '../lib/api';
-import { LogOut, Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import HighlightLensesSection from '../components/HighlightPresetsSection';
 
 function ConfirmDeleteModal({ onClose, onConfirm, isDeleting }) {
@@ -58,11 +59,6 @@ export default function SettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
-
   const handleDeleteAccount = async () => {
     setError('');
     setIsDeleting(true);
@@ -83,29 +79,7 @@ export default function SettingsPage() {
         rel="stylesheet"
       />
 
-      <header className="bg-white/92 backdrop-blur-md border-b border-slate-200 py-4 px-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/app')}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-            title="Back to projects"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <span className="text-[1.05rem] font-semibold text-slate-900" style={{ fontFamily: "'Instrument Serif', serif" }}>
-            WiseMark
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-          title="Sign out"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
-      </header>
+      <AppHeader showBack backTo="/app" />
 
       <div className="max-w-[720px] mx-auto px-6 py-10">
         <h1

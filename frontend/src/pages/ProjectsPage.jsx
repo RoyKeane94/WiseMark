@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../stores/authStore';
 import { projectsAPI, authAPI } from '../lib/api';
-import { Loader2, LogOut, Palette, ChevronRight, Search } from 'lucide-react';
+import { Loader2, Palette, ChevronRight, Search } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import HighlightLensesSection from '../components/HighlightPresetsSection';
 
 const COLORS = [
@@ -180,7 +180,6 @@ function NewProjectModal({ onClose, onCreate, isPending, defaultColorIndex = 0 }
 export default function ProjectsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const logout = useAuthStore((s) => s.logout);
   const [showModal, setShowModal] = useState(false);
   const [showLenses, setShowLenses] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,13 +220,6 @@ export default function ProjectsPage() {
     createProject.mutate({ name, color });
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
-
-  const userInitial = (user?.email?.[0] || user?.username?.[0] || '?').toUpperCase();
-
   return (
     <div className="min-h-screen bg-slate-50 antialiased" style={{ fontFamily: "'DM Sans', sans-serif", color: '#1e293b' }}>
       <link
@@ -235,36 +227,7 @@ export default function ProjectsPage() {
         rel="stylesheet"
       />
 
-      {/* Top bar — same as landing nav */}
-      <header className="bg-white/92 backdrop-blur-md border-b border-slate-200 py-4 px-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center text-white text-xs font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            W
-          </div>
-          <span className="text-[1.05rem] font-semibold text-slate-900" style={{ fontFamily: "'Instrument Serif', serif" }}>
-            WiseMark
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-            title="Sign out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/app/settings')}
-            className="w-8 h-8 rounded-full bg-slate-700 text-white flex items-center justify-center text-[13px] font-semibold hover:bg-slate-600 transition-colors cursor-pointer"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-            title="Account settings"
-          >
-            {userInitial}
-          </button>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Content */}
       <div className="max-w-[720px] mx-auto px-6 py-10" style={{ fontFamily: "'DM Sans', sans-serif" }}>

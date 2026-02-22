@@ -2,11 +2,11 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { libraryAPI, lensesAPI } from '../lib/api';
+import AppHeader from '../components/AppHeader';
 import { normalizePdfText } from '../lib/pdfText';
 import { hexToRgba } from '../lib/colors';
 import { headerBar, btnIcon, text, bg, border } from '../lib/theme';
 import {
-  ArrowLeft,
   Search,
   X,
   Copy,
@@ -360,15 +360,13 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFB]" style={{ fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
+      <AppHeader showBack backTo="/app" />
       {/* Sticky header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <div className="bg-white border-b border-slate-200 sticky top-[65px] z-40">
         <div className="max-w-[860px] mx-auto px-7 pt-4">
           {/* Top row */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <button type="button" onClick={() => navigate('/app')} className={btnIcon} title="Back">
-                <ArrowLeft className="w-4 h-4" />
-              </button>
               <h1 className="text-[17px] font-semibold text-slate-900 tracking-tight">Library</h1>
               <span className="text-xs text-slate-400 ml-1">
                 {highlights.length} annotations across {totalDocs} documents
