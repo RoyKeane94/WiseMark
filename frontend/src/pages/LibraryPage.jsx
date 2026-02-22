@@ -19,6 +19,17 @@ import {
   Trash2,
 } from 'lucide-react';
 
+/** Normalize PDF-extracted text: collapse layout-induced line breaks within paragraphs,
+ * but preserve paragraph breaks (2+ newlines). */
+function normalizePdfText(str) {
+  if (!str || typeof str !== 'string') return str;
+  return str
+    .split(/(?:\r?\n\s*){2,}/)           // split on 2+ newlines = paragraph boundaries
+    .map((p) => p.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length > 0)
+    .join('\n\n');                        // rejoin with double newline = paragraph break
+}
+
 function highlightMatch(str, query) {
   if (!query || query.length < 2) return str;
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
@@ -53,7 +64,7 @@ function ResultCard({ ann, query, hovered, onHover, onLeave, showDoc, onNavigate
 
   const handleCopy = (e) => {
     e.stopPropagation();
-    const copyText = `"${ann.highlighted_text}"${ann.note?.content ? `\n  Note: ${ann.note.content}` : ''}`;
+    const copyText = `"${normalizePdfText(ann.highlighted_text)}"${ann.note?.content ? `\n  Note: ${normalizePdfText(ann.note.content)}` : ''}`;
     navigator.clipboard?.writeText(copyText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -76,18 +87,18 @@ function ResultCard({ ann, query, hovered, onHover, onLeave, showDoc, onNavigate
     >
       <div className="px-4 py-3.5">
         <p
-          className={`text-xs leading-snug ${text.body} whitespace-pre-wrap`}
+          className={`text-xs leading-snug ${text.body} whitespace-pre-line`}
           style={{ fontFamily: "'DM Sans', sans-serif" }}
         >
-          &ldquo;{highlightMatch(ann.highlighted_text, query)}&rdquo;
+          &ldquo;{highlightMatch(normalizePdfText(ann.highlighted_text), query)}&rdquo;
         </p>
 
         {ann.note?.content && (
           <p
-            className={`mt-2 text-[11.5px] ${text.muted} leading-snug italic`}
+            className={`mt-2 text-[11.5px] ${text.muted} leading-snug italic whitespace-pre-line`}
             style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
-            {highlightMatch(ann.note.content, query)}
+            {highlightMatch(normalizePdfText(ann.note.content), query)}
           </p>
         )}
 
