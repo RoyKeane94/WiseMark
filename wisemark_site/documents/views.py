@@ -319,8 +319,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
             position_data = request.data.get('position_data') or {}
             color_key = (request.data.get('color') or 'yellow').strip()
             preset = doc.get_effective_preset()
-            if preset and not preset.colors.filter(key=color_key).exists():
-                color_key = next((c.key for c in preset.colors.all()), 'yellow')
+            color_display_name = None
+            if preset:
+                pc = preset.colors.filter(key=color_key).first()
+                if pc:
+                    color_display_name = pc.display_name
+                elif not preset.colors.filter(key=color_key).exists():
+                    color_key = next((c.key for c in preset.colors.all()), 'yellow')
+                    pc = preset.colors.filter(key=color_key).first()
+                    if pc:
+                        color_display_name = pc.display_name
             legacy_color = Color.objects.filter(key=color_key).first()
             highlighted_text = (request.data.get('highlighted_text') or '').strip()
             if page_number is None:
@@ -341,6 +349,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 position_data=position_data,
                 color=legacy_color,
                 color_key=color_key,
+                color_display_name=color_display_name,
                 highlighted_text=highlighted_text or '',
             )
             comment = (request.data.get('comment') or '').strip()

@@ -236,6 +236,10 @@ export default function LibraryPage() {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  useEffect(() => {
+    setCategoryFilters([]);
+    setProjectFilters([]);
+  }, [selectedLensId]);
 
   const selectedLens = useMemo(() => {
     if (selectedLensId == null) return null;

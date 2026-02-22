@@ -51,7 +51,7 @@ function AnnotationCard({
 }) {
   const colorKey = highlight.color;
   const hex = getHex(colorKey, lensColors);
-  const displayName = getColorDisplayName(colorKey, colorLabels, lensColors);
+  const displayName = highlight.color_display_name ?? getColorDisplayName(colorKey, colorLabels, lensColors);
   const isEditing = editingNoteId === highlight.id;
 
   return (
@@ -385,7 +385,7 @@ export default function SummaryPage() {
         }),
       ];
       for (const h of filteredHighlights) {
-        const colorDisplay = getColorDisplayName(h.color, document?.color_labels, lensColors);
+        const colorDisplay = h.color_display_name ?? getColorDisplayName(h.color, document?.color_labels, lensColors);
         children.push(
           new Paragraph({
             children: [
@@ -437,7 +437,7 @@ export default function SummaryPage() {
       doc.text(document?.filename ?? 'Document Summary', 20, y);
       y += 12;
       for (const h of filteredHighlights) {
-        const colorDisplay = getColorDisplayName(h.color, document?.color_labels, lensColors);
+        const colorDisplay = h.color_display_name ?? getColorDisplayName(h.color, document?.color_labels, lensColors);
         if (y > 270) {
           doc.addPage();
           y = 20;
@@ -751,7 +751,7 @@ export default function SummaryPage() {
             <div className="space-y-4">
               {Object.entries(groupedByTopic).map(([topicKey, items]) => {
                 const hex = getHex(topicKey, lensColors);
-                const name = getColorDisplayName(topicKey, document?.color_labels, lensColors);
+                const name = items[0]?.color_display_name ?? getColorDisplayName(topicKey, document?.color_labels, lensColors);
                 const sectionKey = `topic-${topicKey}`;
                 const isCollapsed = collapsedSections.has(sectionKey);
                 return (

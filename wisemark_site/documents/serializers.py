@@ -202,6 +202,7 @@ class NoteSerializer(serializers.ModelSerializer):
 class HighlightSerializer(serializers.ModelSerializer):
     color = serializers.CharField(source='color_key')
     note = serializers.SerializerMethodField()
+    color_display_name = serializers.SerializerMethodField()
 
     def get_note(self, obj):
         note = getattr(obj, 'note', None)
@@ -209,9 +210,23 @@ class HighlightSerializer(serializers.ModelSerializer):
             return None
         return NoteSerializer(note).data
 
+    def get_color_display_name(self, obj):
+        preset = obj.document.get_effective_preset()
+        if preset:
+            for c in preset.colors.all():
+                if c.key == obj.color_key:
+                    return c.display_name
+        prev_name = (obj.color_display_name or '').strip()
+        if prev_name:
+            return f'{prev_name} (Deleted)'
+        return 'Unknown (Deleted)'
+
     class Meta:
         model = Highlight
-        fields = ['id', 'page_number', 'position_data', 'color', 'highlighted_text', 'created_at', 'updated_at', 'note']
+        fields = [
+            'id', 'page_number', 'position_data', 'color', 'color_display_name',
+            'highlighted_text', 'created_at', 'updated_at', 'note',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
@@ -239,7 +254,11 @@ class LibraryHighlightSerializer(serializers.ModelSerializer):
             for c in preset.colors.all():
                 if c.key == obj.color_key:
                     return c.display_name
-        return obj.color_key
+        # Category was deleted from lens: show previous name + (Deleted)
+        prev_name = (obj.color_display_name or '').strip()
+        if prev_name:
+            return f'{prev_name} (Deleted)'
+        return 'Unknown (Deleted)'
 
     def get_color_hex(self, obj):
         preset = getattr(obj, '_preset', None)

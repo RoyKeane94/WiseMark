@@ -174,6 +174,12 @@ class Highlight(models.Model):
         default='yellow',
         help_text='Raw colour key, supports both legacy and custom preset keys.',
     )
+    color_display_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text='Display name when highlight was created. Shown with (Deleted) when category was removed from lens.',
+    )
     highlighted_text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

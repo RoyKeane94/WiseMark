@@ -278,7 +278,7 @@ export default function AnnotationsSidebar({
                           backgroundColor: `${hex}12`,
                         }}
                       >
-                        {getColorDisplayName(h.color, colorLabels, lensColors)}
+                        {h.color_display_name ?? getColorDisplayName(h.color, colorLabels, lensColors)}
                       </span>
                       <span className="text-[10px] text-slate-400">p.{h.page_number}</span>
                       {documentId && onHighlightDelete && (

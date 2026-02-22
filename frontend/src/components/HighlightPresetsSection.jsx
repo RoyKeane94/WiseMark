@@ -220,7 +220,7 @@ export default function HighlightLensesSection() {
               })}
               {!l.is_system && (l.colors?.length ?? 0) > 1 && (
                 <p className="text-[10px] text-slate-400 italic mt-1">
-                  Removing a colour will delete any highlights and comments using it.
+                  Deleting a colour will not delete the comment.
                 </p>
               )}
               {!l.is_system && (l.colors?.length ?? 0) < MAX_COLORS && (
