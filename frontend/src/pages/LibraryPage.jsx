@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { libraryAPI, lensesAPI } from '../lib/api';
 import AppHeader from '../components/AppHeader';
+import WiseMarkDropdown from '../components/WiseMarkDropdown';
 import { normalizePdfText } from '../lib/pdfText';
 import { hexToRgba } from '../lib/colors';
 import { headerBar, btnIcon, text, bg, border } from '../lib/theme';
@@ -441,19 +442,16 @@ export default function LibraryPage() {
           <div className="flex items-center gap-2 pb-3 flex-wrap">
             <div className="flex items-center gap-1.5 mr-1">
               <span className="text-[11px] text-slate-400 font-medium">Lens:</span>
-              <select
-                value={selectedLensId ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSelectedLensId(v === '' ? null : Number(v));
-                }}
-                className="text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 cursor-pointer outline-none focus:ring-1 focus:ring-slate-300"
-              >
-                <option value="">No lens</option>
-                {lenses.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
+              <WiseMarkDropdown
+                value={selectedLensId}
+                options={[
+                  { value: null, label: 'No lens' },
+                  ...lenses.map((l) => ({ value: l.id, label: l.name })),
+                ]}
+                onChange={setSelectedLensId}
+                placeholder="No lens"
+                minWidth="120px"
+              />
             </div>
             {Object.entries(colorMap).map(([key, info]) => {
               const active = categoryFilters.includes(key);
@@ -527,15 +525,16 @@ export default function LibraryPage() {
               {hasActiveFilters && <span className="text-slate-400"> (filtered)</span>}
             </span>
 
-            <select
+            <WiseMarkDropdown
               value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value)}
-              className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 cursor-pointer outline-none"
-            >
-              <option value="flat">No grouping</option>
-              <option value="document">Group by document</option>
-              <option value="category">Group by category</option>
-            </select>
+              options={[
+                { value: 'flat', label: 'No grouping' },
+                { value: 'document', label: 'Group by document' },
+                { value: 'category', label: 'Group by category' },
+              ]}
+              onChange={setGroupBy}
+              minWidth="140px"
+            />
           </div>
         )}
 

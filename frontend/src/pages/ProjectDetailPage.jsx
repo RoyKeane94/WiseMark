@@ -5,6 +5,7 @@ import { documentsAPI, projectsAPI, lensesAPI } from '../lib/api';
 import { calculateHash, storePDF } from '../lib/db';
 import { Upload, Loader2, FileText, Trash2, Pencil, Check, X, ChevronRight } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
+import WiseMarkDropdown from '../components/WiseMarkDropdown';
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -418,17 +419,17 @@ export default function ProjectDetailPage() {
 
         {/* Sort + Add PDF row */}
         <div className="flex items-center justify-between mb-3">
-          <select
+          <WiseMarkDropdown
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 cursor-pointer outline-none"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            <option value="recent">Recently opened</option>
-            <option value="uploaded">Date uploaded</option>
-            <option value="name">Name A–Z</option>
-            <option value="annotations">Most annotated</option>
-          </select>
+            options={[
+              { value: 'recent', label: 'Recently opened' },
+              { value: 'uploaded', label: 'Date uploaded' },
+              { value: 'name', label: 'Name A–Z' },
+              { value: 'annotations', label: 'Most annotated' },
+            ]}
+            onChange={setSort}
+            minWidth="140px"
+          />
           <button
             type="button"
             onClick={openFilePicker}

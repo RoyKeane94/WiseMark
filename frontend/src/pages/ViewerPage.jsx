@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI } from '../lib/api';
+import WiseMarkDropdown from '../components/WiseMarkDropdown';
 import { getPDFForDocument, calculateHash, storePDF } from '../lib/db';
 import { HIGHLIGHT_COLOR_KEYS } from '../lib/colors';
 import PDFRenderer from '../components/PDFRenderer';
@@ -275,11 +276,10 @@ export default function ViewerPage() {
         </div>
         <div className="flex items-center gap-2">
           {lenses.length > 0 && (
-            <select
-              value={document?.highlight_preset != null ? String(document.highlight_preset) : (lenses.find((p) => p.is_system)?.id ?? '')}
-              onChange={(e) => {
-                const val = e.target.value;
-                const lensId = val === '' ? null : Number(val);
+            <WiseMarkDropdown
+              value={document?.highlight_preset != null ? document.highlight_preset : (lenses.find((p) => p.is_system)?.id ?? lenses[0]?.id)}
+              options={lenses.map((l) => ({ value: l.id, label: l.name }))}
+              onChange={(lensId) => {
                 if (!id) return;
                 if (highlights.length > 0) {
                   setPendingLensSwitch(lensId);
@@ -290,15 +290,9 @@ export default function ViewerPage() {
                   });
                 }
               }}
-              className={`text-xs rounded-lg border ${border.default} ${bg.surface} py-1.5 pl-2 pr-7 ${text.body} cursor-pointer max-w-44`}
-              title="Highlight lens"
-            >
-              {lenses.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+              minWidth="140px"
+              className="max-w-44"
+            />
           )}
           <button
             type="button"
