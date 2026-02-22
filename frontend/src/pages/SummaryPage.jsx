@@ -8,6 +8,7 @@ import {
   getColorDisplayName,
   hexToRgba,
 } from '../lib/colors';
+import { normalizePdfText } from '../lib/pdfText';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border } from '../lib/theme';
 import {
   ArrowLeft,
@@ -68,8 +69,8 @@ function AnnotationCard({
           aria-label="Select highlight"
         />
         <div className="flex-1 min-w-0">
-          <p className={`text-xs leading-snug ${text.body} whitespace-pre-wrap`}>
-            {highlight.highlighted_text || '(No text captured)'}
+          <p className={`text-xs leading-snug ${text.body} whitespace-pre-line`}>
+            {normalizePdfText(highlight.highlighted_text) || '(No text captured)'}
           </p>
           {isEditing ? (
             <div className="mt-2 space-y-1.5">
@@ -100,8 +101,8 @@ function AnnotationCard({
           ) : (
             <>
               {highlight.note?.content && (
-                <p className={`text-[11.5px] ${text.muted} mt-2 leading-snug italic`}>
-                  {highlight.note.content}
+                <p className={`text-[11.5px] ${text.muted} mt-2 leading-snug italic whitespace-pre-line`}>
+                  {normalizePdfText(highlight.note.content)}
                 </p>
               )}
               <button

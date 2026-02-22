@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_COLOR_KEYS, getColorDisplayName } from '../lib/colors';
+import { normalizePdfText } from '../lib/pdfText';
 import { text, border, bg } from '../lib/theme';
 import { FileText, Search, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -217,9 +218,9 @@ export default function AnnotationsSidebar({
                       />
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-xs leading-snug ${text.body} whitespace-pre-wrap`}
+                          className={`text-xs leading-snug ${text.body} whitespace-pre-line`}
                         >
-                          {h.highlighted_text || '(No text captured)'}
+                          {normalizePdfText(h.highlighted_text) || '(No text captured)'}
                         </p>
                       </div>
                     </div>
@@ -253,9 +254,9 @@ export default function AnnotationsSidebar({
                       <>
                         {noteContent && (
                           <p
-                            className={`text-[11.5px] ${text.muted} mt-2 pl-3.5 leading-snug italic`}
+                            className={`text-[11.5px] ${text.muted} mt-2 pl-3.5 leading-snug italic whitespace-pre-line`}
                           >
-                            {noteContent}
+                            {normalizePdfText(noteContent)}
                           </p>
                         )}
                         {documentId && onHighlightNoteUpdate && (

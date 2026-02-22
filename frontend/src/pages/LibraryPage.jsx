@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { libraryAPI, lensesAPI } from '../lib/api';
+import { normalizePdfText } from '../lib/pdfText';
 import { hexToRgba } from '../lib/colors';
 import { headerBar, btnIcon, text, bg, border } from '../lib/theme';
 import {
@@ -18,17 +19,6 @@ import {
   Bookmark,
   Trash2,
 } from 'lucide-react';
-
-/** Normalize PDF-extracted text: collapse layout-induced line breaks within paragraphs,
- * but preserve paragraph breaks (2+ newlines). */
-function normalizePdfText(str) {
-  if (!str || typeof str !== 'string') return str;
-  return str
-    .split(/(?:\r?\n\s*){2,}/)           // split on 2+ newlines = paragraph boundaries
-    .map((p) => p.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' ').trim())
-    .filter((p) => p.length > 0)
-    .join('\n\n');                        // rejoin with double newline = paragraph break
-}
 
 function highlightMatch(str, query) {
   if (!query || query.length < 2) return str;
