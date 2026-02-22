@@ -383,27 +383,36 @@ class LibraryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        highlights = (
+        # Single query: highlights with document, project, note (avoids N+1 on these)
+        highlights = list(
             Highlight.objects
             .filter(document__project__user=request.user)
             .select_related('document__project', 'note')
             .order_by('-created_at')
         )
 
-        preset_cache = {}
+        # Batch-fetch all presets (with colors) in 1–2 queries instead of 1 per unique preset
+        preset_ids = set()
+        need_system = False
         for h in highlights:
-            doc = h.document
-            pid = doc.highlight_preset_id
-            if pid and pid not in preset_cache:
-                preset_cache[pid] = HighlightPreset.objects.prefetch_related('colors').filter(pk=pid).first()
-            if not pid and '_system' not in preset_cache:
-                preset_cache['_system'] = (
-                    HighlightPreset.objects.filter(user__isnull=True)
-                    .prefetch_related('colors')
-                    .order_by('name')
-                    .first()
-                )
-            h._preset = preset_cache.get(pid) or preset_cache.get('_system')
+            pid = h.document.highlight_preset_id
+            if pid:
+                preset_ids.add(pid)
+            else:
+                need_system = True
+
+        preset_map = {}
+        if preset_ids:
+            for p in HighlightPreset.objects.filter(pk__in=preset_ids).prefetch_related('colors'):
+                preset_map[p.id] = p
+        if need_system:
+            sp = HighlightPreset.objects.filter(user__isnull=True).prefetch_related('colors').order_by('name').first()
+            if sp:
+                preset_map['_system'] = sp
+
+        for h in highlights:
+            pid = h.document.highlight_preset_id
+            h._preset = preset_map.get(pid) or preset_map.get('_system')
 
         serializer = LibraryHighlightSerializer(highlights, many=True)
 
