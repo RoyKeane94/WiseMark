@@ -9,6 +9,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage';
 import ViewerPage from './pages/ViewerPage';
 import SummaryPage from './pages/SummaryPage';
 import SettingsPage from './pages/SettingsPage';
+import LibraryPage from './pages/LibraryPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProjectsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/library"
+            element={
+              <ProtectedRoute>
+                <LibraryPage />
               </ProtectedRoute>
             }
           />

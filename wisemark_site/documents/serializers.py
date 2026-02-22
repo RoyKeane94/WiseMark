@@ -213,3 +213,53 @@ class HighlightSerializer(serializers.ModelSerializer):
         model = Highlight
         fields = ['id', 'page_number', 'position_data', 'color', 'highlighted_text', 'created_at', 'updated_at', 'note']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class LibraryHighlightSerializer(serializers.ModelSerializer):
+    """Flat highlight with document + project context for the Library search page."""
+    color = serializers.CharField(source='color_key')
+    note = serializers.SerializerMethodField()
+    document_id = serializers.IntegerField(source='document.id')
+    document_name = serializers.CharField(source='document.filename')
+    project_id = serializers.IntegerField(source='document.project.id')
+    project_name = serializers.CharField(source='document.project.name')
+    project_color = serializers.CharField(source='document.project.color')
+    color_display_name = serializers.SerializerMethodField()
+    color_hex = serializers.SerializerMethodField()
+
+    def get_note(self, obj):
+        note = getattr(obj, 'note', None)
+        if note is None:
+            return None
+        return NoteSerializer(note).data
+
+    def get_color_display_name(self, obj):
+        preset = getattr(obj, '_preset', None)
+        if preset:
+            for c in preset.colors.all():
+                if c.key == obj.color_key:
+                    return c.display_name
+        return obj.color_key
+
+    def get_color_hex(self, obj):
+        preset = getattr(obj, '_preset', None)
+        if preset:
+            for c in preset.colors.all():
+                if c.key == obj.color_key:
+                    return c.hex
+        from .models import Color as LegacyColor
+        defaults = {
+            'yellow': '#EAB308', 'green': '#22C55E', 'blue': '#3B82F6',
+            'pink': '#EC4899', 'orange': '#F97316',
+        }
+        return defaults.get(obj.color_key, '#94a3b8')
+
+    class Meta:
+        model = Highlight
+        fields = [
+            'id', 'page_number', 'color', 'highlighted_text',
+            'created_at', 'updated_at', 'note',
+            'document_id', 'document_name',
+            'project_id', 'project_name', 'project_color',
+            'color_display_name', 'color_hex',
+        ]

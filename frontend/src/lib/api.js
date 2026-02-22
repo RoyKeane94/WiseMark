@@ -52,6 +52,10 @@ export const lensesAPI = {
     api.delete(`/lenses/${lensId}/colors/${colorId}/`),
 };
 
+export const libraryAPI = {
+  get: () => api.get('/library/'),
+};
+
 export const documentsAPI = {
   list: (params) => api.get('/documents/', { params }),
   get: (id) => api.get(`/documents/${id}/`),

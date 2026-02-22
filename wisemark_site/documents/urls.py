@@ -8,5 +8,6 @@ router.register(r'lenses', views.HighlightPresetViewSet, basename='lens')
 router.register(r'documents', views.DocumentViewSet, basename='document')
 
 urlpatterns = [
+    path('library/', views.LibraryView.as_view(), name='library'),
     path('', include(router.urls)),
 ]

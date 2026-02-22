@@ -8,6 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation, HighlightPreset, PresetColor
+from rest_framework.views import APIView
+
 from .serializers import (
     ProjectSerializer,
     DocumentSerializer,
@@ -15,6 +17,7 @@ from .serializers import (
     HighlightPresetSerializer,
     HighlightPresetWriteSerializer,
     PresetColorSerializer,
+    LibraryHighlightSerializer,
 )
 
 
@@ -366,3 +369,48 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     Note.objects.create(highlight=highlight, content=note_content)
         serializer = HighlightSerializer(highlight)
         return Response(serializer.data)
+
+
+class LibraryView(APIView):
+    """Return all highlights for the user across all documents, with document/project context."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        highlights = (
+            Highlight.objects
+            .filter(document__project__user=request.user)
+            .select_related('document__project', 'note')
+            .order_by('-created_at')
+        )
+
+        preset_cache = {}
+        for h in highlights:
+            doc = h.document
+            pid = doc.highlight_preset_id
+            if pid and pid not in preset_cache:
+                preset_cache[pid] = HighlightPreset.objects.prefetch_related('colors').filter(pk=pid).first()
+            if not pid and '_system' not in preset_cache:
+                preset_cache['_system'] = (
+                    HighlightPreset.objects.filter(user__isnull=True)
+                    .prefetch_related('colors')
+                    .order_by('name')
+                    .first()
+                )
+            h._preset = preset_cache.get(pid) or preset_cache.get('_system')
+
+        serializer = LibraryHighlightSerializer(highlights, many=True)
+
+        projects = list(
+            Project.objects.filter(user=request.user)
+            .annotate(
+                document_count=Count('documents', distinct=True),
+                annotation_count=Count('documents__highlights', distinct=True),
+            )
+            .values('id', 'name', 'color', 'document_count', 'annotation_count')
+        )
+
+        return Response({
+            'highlights': serializer.data,
+            'projects': projects,
+            'total_highlights': len(serializer.data),
+        })

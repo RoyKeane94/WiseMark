@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { projectsAPI, authAPI } from '../lib/api';
-import { Loader2, LogOut, Palette, ChevronRight } from 'lucide-react';
+import { Loader2, LogOut, Palette, ChevronRight, Search } from 'lucide-react';
 import HighlightLensesSection from '../components/HighlightPresetsSection';
 
 const COLORS = [
@@ -287,6 +287,15 @@ export default function ProjectsPage() {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               New project
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/app/library')}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
+              <Search className="w-4 h-4" />
+              Library
             </button>
             <button
               type="button"
