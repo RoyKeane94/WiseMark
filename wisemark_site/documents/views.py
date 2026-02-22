@@ -1,6 +1,7 @@
 import hashlib
 
 from django.db.models import Count
+from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -64,7 +65,13 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
                 {'detail': 'System lenses cannot be deleted.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        return super().destroy(request, *args, **kwargs)
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {'detail': 'This lens cannot be deleted because it is linked to one or more PDFs. Remove the lens from those documents first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @action(detail=True, methods=['post'], url_path='colors')
     def add_color(self, request, pk=None):

@@ -22,6 +22,7 @@ export default function HighlightLensesSection() {
   const [pickingName, setPickingName] = useState('');
 
   const [pendingDeleteLens, setPendingDeleteLens] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   const [addColorLensId, setAddColorLensId] = useState(null);
   const [addColorHex, setAddColorHex] = useState(null);
@@ -58,7 +59,15 @@ export default function HighlightLensesSection() {
 
   const deleteLens = useMutation({
     mutationFn: (id) => lensesAPI.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lenses'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lenses'] });
+      setPendingDeleteLens(null);
+      setDeleteError(null);
+    },
+    onError: (err) => {
+      const msg = err?.response?.data?.detail ?? 'This lens cannot be deleted because it is linked to one or more PDFs. Remove the lens from those documents first.';
+      setDeleteError(msg);
+    },
   });
 
   const addColor = useMutation({
@@ -441,7 +450,35 @@ export default function HighlightLensesSection() {
         </div>
       )}
 
-      {pendingDeleteLens && (
+      {deleteError && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
+          onClick={() => setDeleteError(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Cannot delete lens
+            </h3>
+            <p className="text-sm text-slate-600 mb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              {deleteError}
+            </p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setDeleteError(null); setPendingDeleteLens(null); }}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-slate-800 hover:bg-slate-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteLens && !deleteError && (
         <div
           className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 cursor-pointer"
           onClick={() => !deleteLens.isPending && setPendingDeleteLens(null)}
@@ -467,11 +504,7 @@ export default function HighlightLensesSection() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteLens.mutate(pendingDeleteLens.id, {
-                    onSuccess: () => setPendingDeleteLens(null),
-                  });
-                }}
+                onClick={() => deleteLens.mutate(pendingDeleteLens.id)}
                 disabled={deleteLens.isPending}
                 className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-70"
               >
