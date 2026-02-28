@@ -209,13 +209,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # and generates secure URLs, cookies, and redirects.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Secure cookies must be set in production so the browser marks the connection secure.
+# Without these, Chrome shows "Not Secure" even with a valid HTTPS certificate.
+_use_secure_cookies = os.environ.get('USE_SECURE_COOKIES', '').lower() in ('1', 'true', 'yes')
+if not DEBUG or _use_secure_cookies:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+
 # Production security (when DEBUG is False)
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('1', 'true', 'yes')
 
 
