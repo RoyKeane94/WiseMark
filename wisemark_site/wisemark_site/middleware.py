@@ -54,3 +54,33 @@ class SecureCookieMiddleware:
             for name in response.cookies:
                 response.cookies[name]['secure'] = True
         return response
+
+
+class SecurityHeadersMiddleware:
+    """
+    Add Content-Security-Policy and Referrer-Policy for Mozilla/security scans.
+    Only adds headers in production (when DEBUG is False) to avoid breaking dev.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        from django.conf import settings
+        if not settings.DEBUG:
+            # CSP: allow same-origin + Google Fonts; inline styles/scripts for landing & SPA
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com; "
+                "img-src 'self' data: blob:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            )
+            response['Content-Security-Policy'] = csp
+            response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response

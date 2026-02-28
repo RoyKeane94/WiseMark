@@ -85,6 +85,7 @@ if os.environ.get('CORS_ORIGINS'):
 
 MIDDLEWARE = [
     'wisemark_site.middleware.SecureCookieMiddleware',
+    'wisemark_site.middleware.SecurityHeadersMiddleware',
     'wisemark_site.middleware.ErrorReferenceMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
