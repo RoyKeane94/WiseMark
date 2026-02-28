@@ -48,7 +48,7 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in
     os.environ.get(
         'CSRF_TRUSTED_ORIGINS',
-        'http://localhost:8000,http://127.0.0.1:8000,https://wisemark-production.up.railway.app'
+        'http://localhost:8000,http://127.0.0.1:8000,https://wisemark-production.up.railway.app, https://wisemarkhq.com, https://www.wisemarkhq.com'
     ).split(',')
     if o.strip()
 ]
