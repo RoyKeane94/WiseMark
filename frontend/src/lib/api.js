@@ -24,8 +24,8 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (email, password) => api.post('/auth/login/', { email, password }),
-  register: (data) => api.post('/auth/register/', data),
+  requestCode: (email) => api.post('/auth/request-code/', { email }),
+  verifyCode: (email, code) => api.post('/auth/verify-code/', { email, code }),
   logout: () => api.post('/auth/logout/'),
   me: () => api.get('/auth/me/'),
   deleteAccount: () => api.post('/auth/me/delete/'),

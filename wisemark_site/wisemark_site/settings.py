@@ -211,3 +211,24 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() in ('1', 'true', 'yes')
+
+
+# Email Settings — support (default Django mail)
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+SUPPORT_EMAIL_HOST = 'smtp.office365.com'
+SUPPORT_EMAIL_PORT = 587
+SUPPORT_EMAIL_USE_TLS = True
+SUPPORT_EMAIL_USE_SSL = False
+SUPPORT_EMAIL_HOST_USER = os.environ.get('SUPPORT_EMAIL_HOST_USER')
+SUPPORT_EMAIL_HOST_PASSWORD = os.environ.get('SUPPORT_EMAIL_HOST_PASSWORD')
+SUPPORT_DEFAULT_FROM_EMAIL = os.environ.get('SUPPORT_DEFAULT_FROM_EMAIL')
+
+# Email Settings — accounts (sign-in codes)
+
+ACCOUNTS_EMAIL_HOST = 'smtp.office365.com'
+ACCOUNTS_EMAIL_PORT = 587
+ACCOUNTS_EMAIL_USE_TLS = True
+ACCOUNTS_EMAIL_HOST_USER = os.environ.get('ACCOUNTS_EMAIL_HOST_USER')
+ACCOUNTS_EMAIL_HOST_PASSWORD = os.environ.get('ACCOUNTS_EMAIL_HOST_PASSWORD')
+ACCOUNTS_DEFAULT_FROM_EMAIL = os.environ.get('ACCOUNTS_DEFAULT_FROM_EMAIL')
