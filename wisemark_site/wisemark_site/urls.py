@@ -45,6 +45,8 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/', include('documents.urls')),
     path('', landing_page),
+    # Serve favicon so /favicon.ico returns the icon, not the SPA HTML
+    path('favicon.ico', RedirectView.as_view(url='/static/frontend/favicon.svg', permanent=False)),
     path('<path:path>', serve_spa),
 ]
 

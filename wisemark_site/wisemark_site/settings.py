@@ -84,6 +84,7 @@ if os.environ.get('CORS_ORIGINS'):
     CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ['CORS_ORIGINS'].split(',') if o.strip()]
 
 MIDDLEWARE = [
+    'wisemark_site.middleware.SecureCookieMiddleware',
     'wisemark_site.middleware.ErrorReferenceMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',

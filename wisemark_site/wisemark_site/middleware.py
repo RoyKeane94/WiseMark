@@ -1,5 +1,6 @@
 """
 Middleware to capture server errors, assign a reference code, and log them.
+Also forces Secure flag on all cookies when behind HTTPS (X-Forwarded-Proto).
 """
 import logging
 import random
@@ -36,3 +37,20 @@ class ErrorReferenceMiddleware:
             extra={'request': request, 'error_code': code},
         )
         return None  # Let Django continue to 500 handler
+
+
+class SecureCookieMiddleware:
+    """
+    When the request is HTTPS (via X-Forwarded-Proto), set Secure on every cookie.
+    Fixes Chrome "Not Secure" when any cookie lacks the Secure flag.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.META.get('HTTP_X_FORWARDED_PROTO') == 'https':
+            for name in response.cookies:
+                response.cookies[name]['secure'] = True
+        return response
