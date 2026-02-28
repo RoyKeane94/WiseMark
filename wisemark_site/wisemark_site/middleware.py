@@ -56,23 +56,31 @@ class SecureCookieMiddleware:
         return response
 
 
+def _make_csp_nonce():
+    """Generate a random nonce for CSP script-src (no unsafe-inline)."""
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+
+
 class SecurityHeadersMiddleware:
     """
-    Add Content-Security-Policy and Referrer-Policy for Mozilla/security scans.
-    Only adds headers in production (when DEBUG is False) to avoid breaking dev.
+    Add Content-Security-Policy (with nonce for inline scripts) and Referrer-Policy.
+    Only in production (DEBUG=False). Uses nonces so script-src has no 'unsafe-inline'.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
         from django.conf import settings
         if not settings.DEBUG:
-            # CSP: allow same-origin + Google Fonts; inline styles/scripts for landing & SPA
+            request.csp_nonce = _make_csp_nonce()
+        response = self.get_response(request)
+        if not settings.DEBUG and getattr(request, 'csp_nonce', None):
+            nonce = request.csp_nonce
             csp = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'nonce-{nonce}'; "
+                "object-src 'none'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                 "font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; "
@@ -80,7 +88,7 @@ class SecurityHeadersMiddleware:
                 "frame-ancestors 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self'"
-            )
+            ).format(nonce=nonce)
             response['Content-Security-Policy'] = csp
             response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         return response

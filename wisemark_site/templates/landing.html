@@ -516,7 +516,7 @@
   <p>&copy; 2026 WiseMark</p>
 </footer>
 
-<script>
+<script nonce="{{ request.csp_nonce|default:'' }}">
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
 }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });

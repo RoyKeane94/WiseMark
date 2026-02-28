@@ -132,7 +132,7 @@
     <a href="/" class="btn">Go to home</a>
     <a href="/login" class="btn outline">Sign in</a>
   </div>
-  <script>
+  <script nonce="{{ request.csp_nonce|default:'' }}">
     document.getElementById('report-form').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = this;
