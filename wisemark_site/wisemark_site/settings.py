@@ -39,7 +39,7 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = [
     h.strip().rstrip('/') for h in
-    os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,wisemark-production.up.railway.app,.railway.app').split(',')
+    os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,wisemark-production.up.railway.app,.railway.app,www.wisemarkhq.com, wisemarkhq.com').split(',')
     if h.strip()
 ]
 
