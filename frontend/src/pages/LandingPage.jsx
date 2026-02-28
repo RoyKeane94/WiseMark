@@ -7,7 +7,7 @@ export default function LandingPage() {
       <nav
         className={`fixed top-0 left-0 right-0 z-10 h-[52px] px-6 flex items-center justify-between border-b ${border.default} ${bg.surface}`}
       >
-        <div className={`flex items-center gap-2 text-sm font-semibold ${text.heading}`}>
+        <div className="flex items-center gap-2 text-sm font-medium" style={{ fontFamily: "'DM Sans', sans-serif", color: '#1a1f2e' }}>
           <div
             className={`w-5 h-5 rounded-md ${bg.primary} flex items-center justify-center text-[10px] font-bold text-white`}
           >

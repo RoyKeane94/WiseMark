@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 import { authAPI } from '../lib/api';
-import { pageWrapper, text, bg, btnPrimary } from '../lib/theme';
+import AuthLayout from '../components/AuthLayout';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -23,10 +23,15 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await authAPI.requestCode(email);
+      await authAPI.requestCode(email, 'register');
       setStep('code');
     } catch (err) {
-      setError(err.response?.data?.detail || err.response?.data?.email?.[0] || 'Failed to send code');
+      const data = err.response?.data;
+      if (data?.redirect === '/login' || (data?.detail && data.detail.includes('already exists'))) {
+        navigate('/login', { replace: true, state: { message: 'You already have an account. Please sign in.' } });
+        return;
+      }
+      setError(data?.detail || data?.email?.[0] || 'Failed to send code');
     } finally {
       setLoading(false);
     }
@@ -79,37 +84,77 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className={`${pageWrapper} ${bg.page} flex items-center justify-center`}>
-      <div className="w-full max-w-sm">
-        <h1 className={`text-2xl font-semibold ${text.heading} mb-1.5`}>Create account</h1>
-        <p className={`text-sm ${text.muted} mb-6`}>
-          {step === 'email'
-            ? 'Enter your email to get started.'
-            : `Enter the 6-digit code sent to ${email}`}
+    <AuthLayout>
+      <h1 className={`text-[26px] font-normal text-[#1a1f2e] ${step === 'code' ? 'mb-8' : 'mb-1.5'}`} style={{ fontFamily: "'Instrument Serif', serif", letterSpacing: '-0.01em' }}>
+        Create account
+      </h1>
+      {step === 'email' && (
+        <p className="text-sm text-[#8a96ae] font-light mb-8 leading-relaxed">
+          Enter your email to get started.
         </p>
+      )}
 
-        {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+      {error && (
+        <div className="text-[13px] text-[#c0392b] mb-4 min-h-[18px] transition-all duration-150 opacity-100 translate-y-0">
+          {error}
+        </div>
+      )}
 
-        {step === 'email' ? (
-          <form onSubmit={handleRequestCode} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1">
-              <span className={`text-sm ${text.secondary}`}>Email</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-slate-900"
-                required
-                autoComplete="email"
-                autoFocus
-              />
-            </label>
-            <button type="submit" disabled={loading} className={btnPrimary}>
-              {loading ? 'Sending code...' : 'Continue'}
-            </button>
-          </form>
-        ) : (
+      {step === 'email' && (
+        <form onSubmit={handleRequestCode} className="flex flex-col gap-4">
+          <label className="block">
+            <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Email address</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(''); }}
+              className={`w-full px-3.5 py-3 text-[15px] text-[#1a1f2e] bg-[#f8f9fc] border rounded-[7px] outline-none transition-all duration-150 ${
+                error ? 'border-[#c0392b] shadow-[0_0_0_3px_rgba(192,57,43,0.07)]' : 'border-[#e2e6ef]'
+              } focus:border-[#2d3a52] focus:bg-white focus:shadow-[0_0_0_3px_rgba(45,58,82,0.08)]`}
+              placeholder="you@yourfirm.com"
+              required
+              autoComplete="email"
+              autoFocus
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full py-3.5 text-[15px] font-medium text-white rounded-[7px] border-none cursor-pointer transition-all duration-150 relative ${
+              loading ? 'pointer-events-none' : ''
+            }`}
+            style={{ background: '#2d3a52' }}
+          >
+            <span className={loading ? 'opacity-0' : ''}>Continue</span>
+            {loading && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <div className="w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </span>
+            )}
+          </button>
+        </form>
+      )}
+
+      {step === 'code' && (
+        <>
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 bg-[#f0faf5] rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <polyline points="18 6 9 16 4 11" stroke="#2e7d52" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-normal text-[#1a1f2e] mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>
+              Check your inbox
+            </h2>
+            <p className="text-sm text-[#8a96ae] leading-relaxed">
+              We sent a code to <strong className="text-[#2d3a52] font-medium">{email}</strong>.<br />
+              It expires in 10 minutes.
+            </p>
+          </div>
           <div className="flex flex-col gap-4">
+            <label className="block">
+              <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Verification code</span>
+            </label>
             <div className="flex justify-center gap-2.5" onPaste={handlePaste}>
               {code.map((digit, i) => (
                 <input
@@ -121,7 +166,7 @@ export default function RegisterPage() {
                   value={digit}
                   onChange={(e) => handleCodeChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="w-11 h-13 text-center text-xl font-semibold border border-slate-200 rounded-lg text-slate-900 focus:border-slate-400 focus:outline-none transition-colors"
+                  className="w-11 h-[52px] text-center text-xl font-semibold border border-[#e2e6ef] rounded-[7px] text-[#1a1f2e] bg-[#f8f9fc] focus:border-[#2d3a52] focus:bg-white focus:shadow-[0_0_0_3px_rgba(45,58,82,0.08)] focus:outline-none transition-all"
                   style={{ caretColor: 'transparent' }}
                 />
               ))}
@@ -129,17 +174,17 @@ export default function RegisterPage() {
             <button
               type="button"
               onClick={() => { setStep('email'); setCode(['', '', '', '', '', '']); setError(''); }}
-              className={`text-sm ${text.muted} hover:${text.secondary} transition-colors`}
+              className="text-sm text-[#8a96ae] hover:text-[#4a5568] transition-colors"
             >
               Use a different email
             </button>
           </div>
-        )}
+        </>
+      )}
 
-        <p className={`mt-5 text-sm ${text.muted}`}>
-          Already have an account? <Link to="/login" className="text-slate-700 underline">Sign in</Link>
-        </p>
-      </div>
-    </div>
+      <p className="mt-6 text-center text-sm text-[#8a96ae]">
+        Already have an account? <Link to="/login" className="text-[#2d3a52] font-medium no-underline border-b border-transparent hover:border-[#2d3a52] transition-[border-color]">Sign in</Link>
+      </p>
+    </AuthLayout>
   );
 }

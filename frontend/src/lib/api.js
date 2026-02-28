@@ -24,7 +24,7 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  requestCode: (email) => api.post('/auth/request-code/', { email }),
+  requestCode: (email, intent) => api.post('/auth/request-code/', { email, intent }),
   verifyCode: (email, code) => api.post('/auth/verify-code/', { email, code }),
   logout: () => api.post('/auth/logout/'),
   me: () => api.get('/auth/me/'),

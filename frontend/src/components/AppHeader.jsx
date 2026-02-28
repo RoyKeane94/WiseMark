@@ -56,7 +56,7 @@ export default function AppHeader({ showBack = false, backTo = '/app' }) {
           <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center text-white text-xs font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             W
           </div>
-          <span className="text-[1.05rem] font-semibold text-slate-900" style={{ fontFamily: "'Instrument Serif', serif" }}>
+          <span className="text-[1.05rem] font-medium text-slate-900" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             WiseMark
           </span>
         </button>

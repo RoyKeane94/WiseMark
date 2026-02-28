@@ -1,13 +1,14 @@
+import logging
 import random
 import string
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -27,9 +28,23 @@ def _generate_code():
     return ''.join(random.choices(string.digits, k=CODE_LENGTH))
 
 
+def _get_accounts_connection():
+    """Return a Django SMTP connection using the accounts@ mailbox credentials."""
+    return get_connection(
+        backend='django.core.mail.backends.smtp.EmailBackend',
+        host=getattr(settings, 'ACCOUNTS_EMAIL_HOST', None) or settings.EMAIL_HOST,
+        port=getattr(settings, 'ACCOUNTS_EMAIL_PORT', None) or settings.EMAIL_PORT,
+        username=getattr(settings, 'ACCOUNTS_EMAIL_HOST_USER', None) or settings.EMAIL_HOST_USER,
+        password=getattr(settings, 'ACCOUNTS_EMAIL_HOST_PASSWORD', None) or settings.EMAIL_HOST_PASSWORD,
+        use_tls=getattr(settings, 'ACCOUNTS_EMAIL_USE_TLS', True),
+        use_ssl=False,
+    )
+
+
 def _send_code_email(to_email, code, is_new_user=False):
     """Send the sign-in code via the accounts@ mailbox with a clean branded template."""
     subject = f'Your WiseMark {"sign-up" if is_new_user else "sign-in"} code'
+    from_addr = f'WiseMark <{getattr(settings, "ACCOUNTS_DEFAULT_FROM_EMAIL", None) or settings.DEFAULT_FROM_EMAIL}>'
 
     html = f"""\
 <!DOCTYPE html>
@@ -39,7 +54,6 @@ def _send_code_email(to_email, code, is_new_user=False):
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
     <tr><td align="center">
       <table width="460" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-        <!-- Header -->
         <tr>
           <td style="padding:28px 32px 20px 32px;">
             <table cellpadding="0" cellspacing="0"><tr>
@@ -48,7 +62,6 @@ def _send_code_email(to_email, code, is_new_user=False):
             </tr></table>
           </td>
         </tr>
-        <!-- Body -->
         <tr>
           <td style="padding:0 32px 8px 32px;">
             <h1 style="margin:0 0 6px 0;font-size:20px;font-weight:600;color:#0f172a;">
@@ -59,7 +72,6 @@ def _send_code_email(to_email, code, is_new_user=False):
             </p>
           </td>
         </tr>
-        <!-- Code -->
         <tr>
           <td style="padding:16px 32px 20px 32px;">
             <div style="background:#f1f5f9;border-radius:8px;padding:18px 0;text-align:center;letter-spacing:8px;font-size:32px;font-weight:700;color:#0f172a;font-family:'Courier New',monospace;">
@@ -67,7 +79,6 @@ def _send_code_email(to_email, code, is_new_user=False):
             </div>
           </td>
         </tr>
-        <!-- Footer -->
         <tr>
           <td style="padding:0 32px 28px 32px;">
             <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
@@ -75,7 +86,6 @@ def _send_code_email(to_email, code, is_new_user=False):
             </p>
           </td>
         </tr>
-        <!-- Bottom bar -->
         <tr>
           <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
             <p style="margin:0;font-size:11px;color:#94a3b8;text-align:center;">
@@ -95,25 +105,10 @@ def _send_code_email(to_email, code, is_new_user=False):
         f"If you didn't request this, ignore this email."
     )
 
-    from_addr = getattr(settings, 'ACCOUNTS_DEFAULT_FROM_EMAIL', None) or settings.DEFAULT_FROM_EMAIL
-    smtp_user = getattr(settings, 'ACCOUNTS_EMAIL_HOST_USER', None) or settings.EMAIL_HOST_USER
-    smtp_pass = getattr(settings, 'ACCOUNTS_EMAIL_HOST_PASSWORD', None) or settings.EMAIL_HOST_PASSWORD
-    smtp_host = getattr(settings, 'ACCOUNTS_EMAIL_HOST', None) or settings.EMAIL_HOST
-    smtp_port = getattr(settings, 'ACCOUNTS_EMAIL_PORT', None) or settings.EMAIL_PORT
-    use_tls = getattr(settings, 'ACCOUNTS_EMAIL_USE_TLS', True)
-
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = f'WiseMark <{from_addr}>'
-    msg['To'] = to_email
-    msg.attach(MIMEText(plain, 'plain'))
-    msg.attach(MIMEText(html, 'html'))
-
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        if use_tls:
-            server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(from_addr, [to_email], msg.as_string())
+    msg = EmailMultiAlternatives(subject, plain, from_addr, [to_email])
+    msg.attach_alternative(html, 'text/html')
+    msg.connection = _get_accounts_connection()
+    msg.send()
 
 
 @api_view(['POST'])
@@ -121,8 +116,23 @@ def _send_code_email(to_email, code, is_new_user=False):
 def request_code(request):
     """Send a 6-digit code to the given email. Works for both new and existing users."""
     email = (request.data.get('email') or '').strip().lower()
+    intent = (request.data.get('intent') or '').strip()
     if not email:
         return Response({'email': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    user_exists = User.objects.filter(email=email).exists()
+
+    if intent == 'login' and not user_exists:
+        return Response(
+            {'detail': 'No account found with that email. Please register first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if intent == 'register' and user_exists:
+        return Response(
+            {'detail': 'An account with this email already exists. Please sign in instead.', 'redirect': '/login'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     SignOnCode.objects.filter(email=email).delete()
 
@@ -133,13 +143,14 @@ def request_code(request):
         expires_at=timezone.now() + timedelta(minutes=CODE_TTL_MINUTES),
     )
 
-    is_new = not User.objects.filter(email=email).exists()
+    is_new = not user_exists
 
     try:
         _send_code_email(email, code, is_new_user=is_new)
-    except Exception:
+    except Exception as exc:
+        logger.exception('Failed to send sign-in code to %s', email)
         return Response(
-            {'detail': 'Failed to send email. Please try again.'},
+            {'detail': f'Failed to send email: {exc}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
