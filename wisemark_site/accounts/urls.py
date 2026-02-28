@@ -7,4 +7,5 @@ urlpatterns = [
     path('logout/', views.logout),
     path('me/', views.me),
     path('me/delete/', views.delete_account),
+    path('report-error/', views.report_error),
 ]

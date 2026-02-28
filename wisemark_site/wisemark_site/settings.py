@@ -84,6 +84,7 @@ if os.environ.get('CORS_ORIGINS'):
     CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ['CORS_ORIGINS'].split(',') if o.strip()]
 
 MIDDLEWARE = [
+    'wisemark_site.middleware.ErrorReferenceMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -203,6 +204,11 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# When behind a reverse proxy (e.g. Railway), the proxy terminates HTTPS and forwards
+# the request as HTTP. Trust X-Forwarded-Proto so Django sees the request as HTTPS
+# and generates secure URLs, cookies, and redirects.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # Production security (when DEBUG is False)
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
@@ -210,7 +216,7 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() in ('1', 'true', 'yes')
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('1', 'true', 'yes')
 
 
 # Email Settings — support (default Django mail)
@@ -232,3 +238,46 @@ ACCOUNTS_EMAIL_USE_TLS = True
 ACCOUNTS_EMAIL_HOST_USER = os.environ.get('ACCOUNTS_EMAIL_HOST_USER')
 ACCOUNTS_EMAIL_HOST_PASSWORD = os.environ.get('ACCOUNTS_EMAIL_HOST_PASSWORD')
 ACCOUNTS_DEFAULT_FROM_EMAIL = os.environ.get('ACCOUNTS_DEFAULT_FROM_EMAIL')
+
+# Logging: ensure errors and user reports are visible (console + optional file)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        '': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'wisemark_site': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

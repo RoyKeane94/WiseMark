@@ -220,3 +220,27 @@ def delete_account(request):
     user = request.user
     user.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def report_error(request):
+    """Log a user-submitted error report (reference code + message). No auth required."""
+    reference_code = (request.data.get('reference_code') or '').strip() or None
+    message = (request.data.get('message') or '').strip() or None
+    url = (request.data.get('url') or '').strip() or None
+    email = (request.data.get('email') or '').strip() or None
+    if not reference_code:
+        return Response(
+            {'detail': 'reference_code is required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    logger.warning(
+        'User error report [%s]: message=%r url=%r email=%r',
+        reference_code,
+        message,
+        url,
+        email,
+        extra={'reference_code': reference_code},
+    )
+    return Response({'detail': 'Report received.'}, status=status.HTTP_200_OK)

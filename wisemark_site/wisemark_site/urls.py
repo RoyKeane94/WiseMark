@@ -9,6 +9,17 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 
 
+def custom_404(request, exception):
+    """Custom 404 page (used when DEBUG=False)."""
+    return render(request, '404.html', status=404)
+
+
+def custom_500(request):
+    """Custom 500 page (used when DEBUG=False)."""
+    error_code = getattr(request, 'error_reference_code', None) or 'UNKNOWN'
+    return render(request, '500.html', {'error_reference_code': error_code}, status=500)
+
+
 def landing_page(request):
     """Serve the marketing landing page at /."""
     return render(request, 'landing.html')
@@ -36,3 +47,6 @@ urlpatterns = [
     path('', landing_page),
     path('<path:path>', serve_spa),
 ]
+
+handler404 = custom_404
+handler500 = custom_500

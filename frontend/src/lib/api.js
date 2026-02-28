@@ -29,6 +29,7 @@ export const authAPI = {
   logout: () => api.post('/auth/logout/'),
   me: () => api.get('/auth/me/'),
   deleteAccount: () => api.post('/auth/me/delete/'),
+  reportError: (data) => api.post('/auth/report-error/', data),
 };
 
 export const projectsAPI = {
