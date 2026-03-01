@@ -134,11 +134,12 @@ class Document(models.Model):
         return HighlightPreset.objects.filter(user__isnull=True).order_by('name').first()
 
     def get_pdf_bytes(self):
-        """Return PDF bytes from current storage. For postgres: from pdf_file; for s3: fetch from S3 (not implemented)."""
+        """Return PDF bytes from current storage. Postgres: from pdf_file; S3: fetch from S3."""
         if self.storage_location == StorageLocation.POSTGRES and self.pdf_file:
             return bytes(self.pdf_file)
         if self.storage_location == StorageLocation.S3 and self.s3_key:
-            return None
+            from .s3_storage import get_pdf_bytes as s3_get
+            return s3_get(self.s3_key)
         return None
 
 

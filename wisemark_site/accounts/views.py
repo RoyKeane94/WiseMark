@@ -118,17 +118,20 @@ def request_code(request):
     email = (request.data.get('email') or '').strip().lower()
     intent = (request.data.get('intent') or '').strip()
     if not email:
+        logger.warning('request_code 400: email required')
         return Response({'email': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
 
     user_exists = User.objects.filter(email=email).exists()
 
     if intent == 'login' and not user_exists:
+        logger.warning('request_code 400: no account for email (login)')
         return Response(
             {'detail': 'No account found with that email. Please register first.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     if intent == 'register' and user_exists:
+        logger.warning('request_code 400: account already exists (register)')
         return Response(
             {'detail': 'An account with this email already exists. Please sign in instead.', 'redirect': '/login'},
             status=status.HTTP_400_BAD_REQUEST,

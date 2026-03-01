@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation, HighlightPreset, PresetColor
+from . import s3_storage
 from rest_framework.views import APIView
 
 from .serializers import (
@@ -223,9 +224,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
             if not filename.lower().endswith('.pdf'):
                 filename = f'{filename}.pdf'
             file_size = len(file_bytes)
-            storage_location = StorageLocation.POSTGRES
-            pdf_file = file_bytes
-            s3_key = None
+            if s3_storage.is_s3_configured():
+                s3_key = s3_storage.upload_pdf_bytes(pdf_hash, file_bytes)
+                storage_location = StorageLocation.S3
+                pdf_file = None
+            else:
+                storage_location = StorageLocation.POSTGRES
+                pdf_file = file_bytes
+                s3_key = None
         else:
             # JSON-only (legacy): metadata only, no file stored on server
             pdf_hash = (request.data.get('pdf_hash') or '').strip()
@@ -305,10 +311,20 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'detail': 'This file does not match the original document.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        doc.pdf_file = file_bytes
-        doc.storage_location = StorageLocation.POSTGRES
-        doc.file_size = len(file_bytes)
-        doc.save(update_fields=['pdf_file', 'storage_location', 'file_size'])
+        file_size = len(file_bytes)
+        if s3_storage.is_s3_configured():
+            s3_key = s3_storage.upload_pdf_bytes(doc.pdf_hash, file_bytes)
+            doc.storage_location = StorageLocation.S3
+            doc.s3_key = s3_key
+            doc.pdf_file = None
+            doc.file_size = file_size
+            doc.save(update_fields=['pdf_file', 'storage_location', 's3_key', 'file_size'])
+        else:
+            doc.pdf_file = file_bytes
+            doc.storage_location = StorageLocation.POSTGRES
+            doc.s3_key = None
+            doc.file_size = file_size
+            doc.save(update_fields=['pdf_file', 'storage_location', 's3_key', 'file_size'])
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get', 'post'], url_path='highlights')
