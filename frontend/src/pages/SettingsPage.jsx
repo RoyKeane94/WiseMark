@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import useAuthStore from '../stores/authStore';
 import { authAPI } from '../lib/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail, LogOut } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import HighlightLensesSection from '../components/HighlightPresetsSection';
 
@@ -59,6 +60,16 @@ export default function SettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
 
+  const { data: user } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => (await authAPI.me()).data,
+  });
+
+  const handleSignOut = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   const handleDeleteAccount = async () => {
     setError('');
     setIsDeleting(true);
@@ -86,10 +97,33 @@ export default function SettingsPage() {
           className="m-0 text-[28px] text-slate-950"
           style={{ fontFamily: "'Instrument Serif', serif", fontWeight: 700, letterSpacing: '0.01em' }}
         >
-          Account settings
+          Settings
         </h1>
 
-        <div className="mt-8">
+        <section className="mt-8 p-6 bg-white border border-slate-200 rounded-xl">
+          <h2 className="text-base font-semibold text-slate-800 mb-1 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-slate-500" />
+            Account
+          </h2>
+          {user?.email && (
+            <p className="text-sm text-slate-600 mt-1 mb-2">
+              {user.email}
+            </p>
+          )}
+          <p className="text-sm text-slate-500 mb-4">
+            You sign in with a one-time code sent to this email. No password.
+          </p>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
+        </section>
+
+        <div className="mt-6">
           <HighlightLensesSection />
         </div>
 

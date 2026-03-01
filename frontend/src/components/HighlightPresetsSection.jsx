@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { lensesAPI } from '../lib/api';
-import { Plus, Trash2, Palette, X } from 'lucide-react';
+import { Plus, Trash2, Palette, X, ChevronDown, ChevronRight } from 'lucide-react';
 
 const PALETTE = [
   '#FBBF24', '#34D399', '#60A5FA', '#F472B6', '#FB923C',
@@ -30,6 +30,7 @@ export default function HighlightLensesSection() {
 
   const [editingColor, setEditingColor] = useState(null);
   const [editingColorName, setEditingColorName] = useState('');
+  const [lensesExpanded, setLensesExpanded] = useState(false);
 
   const { data: lenses = [] } = useQuery({
     queryKey: ['lenses'],
@@ -127,15 +128,30 @@ export default function HighlightLensesSection() {
 
   return (
     <section className="p-6 bg-white border border-slate-200 rounded-xl">
-      <h2 className="text-base font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <Palette className="w-4 h-4 text-slate-500" />
-        Highlight lenses
-      </h2>
-      <p className="text-sm text-slate-500 mb-4">
-        Each lens has {MAX_COLORS} colour categories. You can create up to {MAX_CUSTOM_LENSES} custom lenses.
-      </p>
+      <button
+        type="button"
+        onClick={() => setLensesExpanded((e) => !e)}
+        className="w-full flex items-center justify-between gap-2 text-left rounded-lg hover:bg-slate-50 -m-2 p-2 transition-colors"
+        aria-expanded={lensesExpanded}
+      >
+        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+          <Palette className="w-4 h-4 text-slate-500 shrink-0" />
+          Lenses
+        </h2>
+        {lensesExpanded ? (
+          <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />
+        ) : (
+          <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+        )}
+      </button>
 
-      <ul className="space-y-2 mb-4">
+      {lensesExpanded && (
+        <>
+          <p className="text-sm text-slate-500 mb-4 mt-2">
+            Each lens has {MAX_COLORS} colour categories. You can create up to {MAX_CUSTOM_LENSES} custom lenses.
+          </p>
+
+          <ul className="space-y-2 mb-4">
         {lenses.map((l) => (
           <li key={l.id} className="py-2.5 px-3 rounded-lg bg-slate-50 border border-slate-100">
             <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -240,9 +256,9 @@ export default function HighlightLensesSection() {
             </div>
           </li>
         ))}
-      </ul>
+          </ul>
 
-      {customLenses.length < MAX_CUSTOM_LENSES && (
+          {customLenses.length < MAX_CUSTOM_LENSES && (
         <button
           type="button"
           onClick={() => setCreateStep(1)}
@@ -251,6 +267,9 @@ export default function HighlightLensesSection() {
           <Plus className="w-4 h-4" />
           Create lens
         </button>
+          )}
+
+        </>
       )}
 
       {createStep > 0 && (
