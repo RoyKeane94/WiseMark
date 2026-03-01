@@ -256,6 +256,11 @@ ACCOUNTS_EMAIL_HOST_USER = os.environ.get('ACCOUNTS_EMAIL_HOST_USER')
 ACCOUNTS_EMAIL_HOST_PASSWORD = os.environ.get('ACCOUNTS_EMAIL_HOST_PASSWORD')
 ACCOUNTS_DEFAULT_FROM_EMAIL = os.environ.get('ACCOUNTS_DEFAULT_FROM_EMAIL')
 
+# Email — TB (welcome email from tb@wisemarkhq.com)
+TB_EMAIL_HOST_USER = os.environ.get('TB_EMAIL_HOST_USER')
+TB_EMAIL_HOST_PASSWORD = os.environ.get('TB_EMAIL_HOST_PASSWORD')
+TB_DEFAULT_FROM_EMAIL = os.environ.get('TB_DEFAULT_FROM_EMAIL')
+
 # Logging: ensure errors and user reports are visible (console + optional file)
 LOGGING = {
     'version': 1,

@@ -42,6 +42,80 @@ def _get_accounts_connection():
     )
 
 
+def _get_tb_connection():
+    """Return a Django SMTP connection using TB_EMAIL (tb@wisemarkhq.com) from .env."""
+    return get_connection(
+        backend='django.core.mail.backends.smtp.EmailBackend',
+        host=getattr(settings, 'ACCOUNTS_EMAIL_HOST', None) or settings.EMAIL_HOST,
+        port=getattr(settings, 'ACCOUNTS_EMAIL_PORT', None) or settings.EMAIL_PORT,
+        username=getattr(settings, 'TB_EMAIL_HOST_USER', None),
+        password=getattr(settings, 'TB_EMAIL_HOST_PASSWORD', None),
+        use_tls=getattr(settings, 'ACCOUNTS_EMAIL_USE_TLS', True),
+        use_ssl=False,
+    )
+
+
+def _send_welcome_email(user):
+    """Send welcome email from tb@wisemarkhq.com when a user signs up."""
+    from_email = getattr(settings, 'TB_DEFAULT_FROM_EMAIL', None)
+    if not from_email:
+        logger.warning('TB_DEFAULT_FROM_EMAIL not set; skipping welcome email')
+        return
+    conn = _get_tb_connection()
+    if not conn.username or not conn.password:
+        logger.warning('TB_EMAIL_HOST_USER or TB_EMAIL_HOST_PASSWORD not set; skipping welcome email')
+        return
+    name = (user.email or '').split('@')[0].replace('.', ' ').title() or 'there'
+    from_addr = f'"Tom, WiseMark" <{from_email}>'
+    subject = 'Two things happen when you use WiseMark'
+    plain = f"""Welcome to WiseMark!
+
+
+Two things happen when you use WiseMark.
+
+First, you read better. Knowing you're about to annotate changes how you read. You slow down in the right places. You commit to a view. The discipline of structured annotation is most of the value, WiseMark just makes it frictionless.
+
+Second, every annotation becomes part of your proprietary dataset. In six months you'll have something no AI can generate: a structured, searchable record of your own judgment across every deal you've reviewed.
+
+It starts with the first document. Please let me know how you get on.
+
+Tom
+Founder, WiseMark
+"""
+    html = f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <tr>
+          <td style="padding:32px 36px;">
+            <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">Welcome to WiseMark!</p>
+            <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">Two things happen when you use WiseMark.</p>
+            <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">First, you read better. <strong>Knowing you're about to annotate changes how you read.</strong> You slow down in the right places. You commit to a view. The discipline of structured annotation is most of the value, WiseMark just makes it frictionless.</p>
+            <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">Second, every annotation becomes part of your proprietary dataset. In six months you'll have something no AI can generate: <strong>a structured, searchable record of your own judgment across every deal you've reviewed.</strong></p>
+            <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">It starts with the first document. Please let me know how you get on.</p>
+            <p style="margin:0;font-size:16px;line-height:1.65;color:#1e293b;">Tom<br>Founder, WiseMark</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8fafc;padding:16px 36px;border-top:1px solid #e2e8f0;">
+            <p style="margin:0;font-size:11px;color:#94a3b8;">&copy; 2026 WiseMark &middot; wisemarkhq.com</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+    msg = EmailMultiAlternatives(subject, plain, from_addr, [user.email])
+    msg.attach_alternative(html, 'text/html')
+    msg.connection = conn
+    msg.send()
+
+
 def _send_code_email(to_email, code, is_new_user=False):
     """Send the sign-in code via the accounts@ mailbox with a clean branded template."""
     subject = f'Your WiseMark {"sign-up" if is_new_user else "sign-in"} code'
@@ -203,6 +277,12 @@ def verify_code(request):
         account.is_beta = True
         account.save(update_fields=['is_beta'])
     token, _ = Token.objects.get_or_create(user=user)
+
+    if is_new_user:
+        try:
+            _send_welcome_email(user)
+        except Exception as exc:
+            logger.exception('Failed to send welcome email to %s', user.email)
 
     return Response({
         'token': token.key,
