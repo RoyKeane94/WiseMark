@@ -1,0 +1,45 @@
+{% extends 'pages/base.html' %}
+{% block title %}Security | WiseMark{% endblock %}
+{% block content %}
+<div class="section-label">Security</div>
+<h1>Your analysis is confidential. We treat it that way.</h1>
+<p style="font-size:1.05rem;margin-bottom:2rem;">WiseMark holds your analysis of confidential documents. We built the infrastructure accordingly.</p>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">Data encryption</h2>
+  <p><strong style="color:var(--slate-800);">In transit:</strong> All connections between your browser and WiseMark's servers are encrypted using TLS 1.2 or higher. No data is ever sent unencrypted.</p>
+  <p><strong style="color:var(--slate-800);">At rest:</strong> Documents you upload are stored on AWS S3 with AES-256 server-side encryption, the industry standard for data at rest. Your annotation data and account information are stored in PostgreSQL hosted on Railway, which encrypts all data at the storage layer. Backups are also encrypted.</p>
+</div>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">Infrastructure</h2>
+  <p>The application is hosted on Railway. File storage is on AWS S3 in Europe. The database is PostgreSQL on Railway's managed infrastructure, with automated backups and monitoring; the database is not shared with other tenants. There are no self-hosted servers and everything runs on managed infrastructure from established providers (AWS, Railway) with their own security certifications and SLAs.</p>
+</div>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">Documents: upload, processing, deletion</h2>
+  <p><strong style="color:var(--slate-800);">Upload:</strong> Documents are transmitted over TLS and stored encrypted on AWS S3. They are only accessible to the authenticated user who uploaded them.</p>
+  <p><strong style="color:var(--slate-800);">Processing:</strong> Documents are rendered in the browser using pdf.js. WiseMark does not modify, reformat, or extract text from your original document server-side beyond what is needed for the annotation functionality. The original PDF remains intact.</p>
+  <p><strong style="color:var(--slate-800);">Deletion:</strong> When you delete a document, the file and all associated annotations are permanently removed from storage.</p>
+</div>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">Your data is yours</h2>
+  <p><strong style="color:var(--slate-800);">Export anytime:</strong> You can export your full annotation library at any time in a structured format. Your data is never locked in.</p>
+  <p><strong style="color:var(--slate-800);">Delete anytime:</strong> Request account deletion and all associated data (documents, annotations, account information) is permanently removed from all systems, including backups, within 30 days.</p>
+  <p><strong style="color:var(--slate-800);">No vendor lock-in:</strong> WiseMark is designed so that your annotation data remains useful and portable. You built it, you own it.</p>
+</div>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">No AI, no training, no third-party data sharing</h2>
+  <p>WiseMark does not use AI. Your documents are not processed by any AI model. Your annotations are not analysed, summarised, or interpreted by any automated system.</p>
+  <p>Your data is never used for training. Unlike AI-powered document tools, WiseMark never sends your documents or annotations to any language model, machine learning pipeline, or third-party AI service.</p>
+</div>
+
+<div style="margin-bottom:2rem;">
+  <h2 style="font-size:0.9rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-700);margin-bottom:0.5rem;">Compliance and data location</h2>
+  <p>We are GDPR compliant. Data is hosted in Europe. Encryption at rest and in transit is as described above.</p>
+</div>
+
+<p style="margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--slate-200);font-size:0.95rem;">To report a vulnerability or ask a security question, contact <a href="mailto:support@wisemarkhq.com" style="color:var(--slate-700);text-decoration:underline;">support@wisemarkhq.com</a>.</p>
+{% endblock %}

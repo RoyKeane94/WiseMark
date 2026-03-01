@@ -1,0 +1,56 @@
+{% extends 'pages/base.html' %}
+{% block title %}Contact | WiseMark{% endblock %}
+{% block extra_css %}
+  .contact-form { max-width: 480px; margin-top: 1.5rem; }
+  .contact-form label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--slate-700); margin-bottom: 0.35rem; }
+  .contact-form input, .contact-form textarea {
+    width: 100%; padding: 0.6rem 0.75rem; margin-bottom: 1rem;
+    font-size: 0.95rem; font-family: 'DM Sans', sans-serif;
+    border: 1px solid var(--slate-200); border-radius: 6px;
+    color: var(--slate-900); background: var(--white);
+  }
+  .contact-form textarea { min-height: 120px; resize: vertical; }
+  .contact-form input:focus, .contact-form textarea:focus {
+    outline: none; border-color: var(--slate-500); box-shadow: 0 0 0 2px rgba(100,116,139,0.15);
+  }
+  .contact-form button {
+    padding: 0.6rem 1.25rem;
+    background: var(--slate-900); color: white;
+    border: none; border-radius: 6px;
+    font-size: 0.9rem; font-weight: 500;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+  .contact-form button:hover { background: var(--slate-700); }
+  .contact-email { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--slate-200); font-size: 0.95rem; color: var(--slate-600); }
+  .contact-email a { color: var(--slate-700); text-decoration: underline; }
+  .messages { margin-bottom: 1rem; }
+  .messages li { list-style: none; padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.9rem; margin-bottom: 0.5rem; }
+  .messages .success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .messages .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+{% endblock %}
+{% block content %}
+<div class="section-label">Contact</div>
+<h1>Get in touch</h1>
+<p>Use the form below or email us directly at <a href="mailto:support@wisemarkhq.com" style="color:var(--slate-700);text-decoration:underline;">support@wisemarkhq.com</a>.</p>
+
+{% if messages %}
+<ul class="messages">
+  {% for message in messages %}
+  <li class="{{ message.tags }}">{{ message }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<form class="contact-form" method="post" action="/contact/">
+  {% csrf_token %}
+  <label for="id_name">Name</label>
+  <input type="text" name="name" id="id_name" required placeholder="Your name" value="{{ request.POST.name|default:'' }}">
+  <label for="id_email">Email</label>
+  <input type="email" name="email" id="id_email" required placeholder="you@example.com" value="{{ request.POST.email|default:'' }}">
+  <label for="id_message">Message</label>
+  <textarea name="message" id="id_message" required placeholder="Your message">{{ request.POST.message|default:'' }}</textarea>
+  <button type="submit">Send message</button>
+</form>
+
+<p class="contact-email">For security or vulnerability reports, contact <a href="mailto:support@wisemarkhq.com">support@wisemarkhq.com</a>.</p>
+{% endblock %}
