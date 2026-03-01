@@ -48,7 +48,14 @@ export default function ViewerPage() {
   });
 
   useEffect(() => {
-    if (!document || !id) return;
+    if (document?.deleted_at && id) {
+      navigate(`/document/${id}/summary`, { replace: true });
+      return;
+    }
+  }, [document?.deleted_at, id, navigate]);
+
+  useEffect(() => {
+    if (!document || !id || document?.deleted_at) return;
     let cancelled = false;
     const load = async () => {
       setLoadingPdf(true);

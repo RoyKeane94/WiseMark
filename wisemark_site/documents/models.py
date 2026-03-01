@@ -114,6 +114,11 @@ class Document(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_opened_at = models.DateTimeField(null=True, blank=True, help_text='Last time the user opened this document in the viewer')
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When set, the PDF is soft-deleted; highlights and notes are kept for reference.',
+    )
     highlight_preset = models.ForeignKey(
         HighlightPreset,
         on_delete=models.PROTECT,

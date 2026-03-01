@@ -16,7 +16,6 @@ const MAX_COLORS = 5;
 export default function EditLensModal({ lens, documentId, onClose }) {
   const queryClient = useQueryClient();
   const colors = lens?.colors ?? [];
-  const isSystem = !lens || lens.is_system;
 
   const [addingHex, setAddingHex] = useState(null);
   const [addingName, setAddingName] = useState('');
@@ -77,13 +76,7 @@ export default function EditLensModal({ lens, documentId, onClose }) {
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-auto flex-1 min-h-0">
-          {isSystem ? (
-            <p className={`text-sm ${text.secondary}`}>
-              Default lenses cannot be edited. Create a custom lens from Settings to customise colours.
-            </p>
-          ) : (
-            <>
-              <div>
+          <div>
                 <p className={`text-xs ${text.muted} mb-2.5 uppercase tracking-wider font-medium`}>
                   Colours ({colors.length}/{MAX_COLORS})
                 </p>
@@ -179,8 +172,6 @@ export default function EditLensModal({ lens, documentId, onClose }) {
                   )}
                 </div>
               )}
-            </>
-          )}
         </div>
 
         <div className="px-5 py-3 border-t border-slate-100 flex justify-end shrink-0">

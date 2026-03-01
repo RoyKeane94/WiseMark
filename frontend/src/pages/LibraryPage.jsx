@@ -37,9 +37,9 @@ const SAVED_SEARCHES_KEY = 'wisemark_saved_searches';
 function loadSavedSearches() {
   try {
     const raw = localStorage.getItem(SAVED_SEARCHES_KEY);
-    if (raw) {
+    if (raw != null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (_) {}
   return [{ id: 's1', name: 'Margin compression', query: 'margin compression', filters: { categories: [] } }];
@@ -425,7 +425,7 @@ export default function LibraryPage() {
                 </button>
                 <button
                   onClick={(e) => deleteSavedSearch(s.id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all"
+                  className="p-0.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all"
                   title="Delete saved search"
                 >
                   <Trash2 className="w-2.5 h-2.5" />
@@ -520,13 +520,13 @@ export default function LibraryPage() {
       <div className="relative px-7 py-5 pb-20">
         {/* Main results - centered, fixed width */}
         <div className="max-w-[860px] mx-auto">
-        {/* Results header */}
-        {resultsActive && (
+        {/* Results header - show whenever we have annotations to list */}
+        {highlights.length > 0 && (
           <div className="flex items-center justify-between mb-4">
             <span className="text-[13px] text-slate-500">
-              <strong className="text-slate-900">{results.length}</strong> result{results.length !== 1 && 's'}
+              <strong className="text-slate-900">{results.length}</strong> {resultsActive ? 'result' : 'annotation'}{results.length !== 1 ? 's' : ''}
               {activeQuery && <> for &ldquo;<strong className="text-slate-900">{activeQuery}</strong>&rdquo;</>}
-              {hasActiveFilters && <span className="text-slate-400"> (filtered)</span>}
+              {hasActiveFilters && !activeQuery && <span className="text-slate-400"> (filtered)</span>}
             </span>
 
             <WiseMarkDropdown
@@ -542,8 +542,8 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!resultsActive && (
+        {/* Empty state - only when user has no annotations at all */}
+        {highlights.length === 0 && (
           <div className="text-center py-16">
             <Search className="w-10 h-10 mx-auto mb-3 text-slate-200" />
             <p className="text-[15px] text-slate-600 font-medium mb-1.5">
@@ -555,15 +555,15 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* No results */}
-        {resultsActive && results.length === 0 && (
+        {/* No results - search/filters applied but nothing matched */}
+        {highlights.length > 0 && resultsActive && results.length === 0 && (
           <div className="text-center py-12 text-slate-400 text-sm">
             No annotations match your search. Try different keywords or clear your filters.
           </div>
         )}
 
-        {/* Flat results */}
-        {resultsActive && groupBy === 'flat' && results.length > 0 && (
+        {/* Flat results - show all annotations until user searches */}
+        {highlights.length > 0 && groupBy === 'flat' && results.length > 0 && (
           <div className="flex flex-col gap-2">
             {results.map((ann) => (
               <ResultCard
@@ -581,7 +581,7 @@ export default function LibraryPage() {
         )}
 
         {/* Grouped by document */}
-        {resultsActive && groupBy === 'document' && grouped && (
+        {highlights.length > 0 && groupBy === 'document' && grouped && (
           <div className="flex flex-col gap-5">
             {Object.entries(grouped).map(([docId, items]) => {
               const first = items[0];
@@ -620,7 +620,7 @@ export default function LibraryPage() {
         )}
 
         {/* Grouped by category */}
-        {resultsActive && groupBy === 'category' && grouped && (
+        {highlights.length > 0 && groupBy === 'category' && grouped && (
           <div className="flex flex-col gap-5">
             {Object.entries(colorMap).map(([key, info]) => {
               const items = grouped[key];
@@ -656,7 +656,7 @@ export default function LibraryPage() {
         </div>
 
         {/* Search insights - absolute overlay on right, does not shift main content */}
-        {resultsActive && results.length > 3 && (
+        {results.length > 3 && (
           <div className="absolute right-7 top-5 w-[260px]">
             <div className="sticky top-24">
               <InsightPanel results={results} colorMap={colorMap} />

@@ -24,8 +24,8 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  requestCode: (email, intent) => api.post('/auth/request-code/', { email, intent }),
-  verifyCode: (email, code) => api.post('/auth/verify-code/', { email, code }),
+  requestCode: (email, intent, data = {}) => api.post('/auth/request-code/', { email, intent, ...data }),
+  verifyCode: (email, code, data = {}) => api.post('/auth/verify-code/', { email, code, ...data }),
   logout: () => api.post('/auth/logout/'),
   me: () => api.get('/auth/me/'),
   deleteAccount: () => api.post('/auth/me/delete/'),
@@ -71,6 +71,8 @@ export const documentsAPI = {
     api.post(`/documents/${id}/upload_pdf/`, formData),
   update: (id, data) => api.patch(`/documents/${id}/`, data),
   delete: (id) => api.delete(`/documents/${id}/`),
+  /** Permanently remove a removed PDF and all its highlights/notes. Only for docs with deleted_at set. */
+  remove: (id) => api.post(`/documents/${id}/remove/`),
   highlights: (id) => api.get(`/documents/${id}/highlights/`),
   createHighlight: (documentId, data) =>
     api.post(`/documents/${documentId}/highlights/`, data),

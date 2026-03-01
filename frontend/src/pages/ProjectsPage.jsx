@@ -262,8 +262,10 @@ export default function ProjectsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowLenses(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+              onClick={() => setShowLenses((v) => !v)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                showLenses ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
               style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
               <Palette className="w-4 h-4" />
@@ -272,7 +274,28 @@ export default function ProjectsPage() {
           </div>
         </div>
 
+        {/* Inline Lenses section (no modal) */}
+        {showLenses && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-slate-800" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Your Lenses
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowLenses(false)}
+                className="text-sm font-medium text-slate-600 hover:text-slate-800"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Done
+              </button>
+            </div>
+            <HighlightLensesSection noCollapse />
+          </div>
+        )}
+
         {/* Stats bar — light grey sans */}
+        {!showLenses && (
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
           <span>{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
           <span className="text-slate-300">·</span>
@@ -280,9 +303,10 @@ export default function ProjectsPage() {
           <span className="text-slate-300">·</span>
           <span>{totalAnnotations} annotation{totalAnnotations !== 1 ? 's' : ''}</span>
         </div>
+        )}
 
         {/* Search */}
-        {projects.length > 3 && (
+        {!showLenses && projects.length > 3 && (
           <div className="relative mb-4">
             <svg
               width="16"
@@ -308,7 +332,7 @@ export default function ProjectsPage() {
         )}
 
         {/* Project list */}
-        {isLoading ? (
+        {!showLenses && (isLoading ? (
           <div className="flex items-center gap-2 text-slate-500 py-12" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             <Loader2 className="w-5 h-5 animate-spin" />
             Loading projects…
@@ -323,15 +347,15 @@ export default function ProjectsPage() {
               />
             ))}
           </div>
-        )}
+        ))}
 
-        {!isLoading && filtered.length === 0 && searchQuery && (
+        {!showLenses && !isLoading && filtered.length === 0 && searchQuery && (
           <div className="text-center py-12 text-slate-500 text-sm" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             No projects match &quot;{searchQuery}&quot;
           </div>
         )}
 
-        {!isLoading && projects.length === 0 && (
+        {!showLenses && !isLoading && projects.length === 0 && (
           <div className="text-center py-16 text-slate-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             <svg
               width="48"
@@ -361,19 +385,6 @@ export default function ProjectsPage() {
         />
       )}
 
-      {showLenses && (
-        <div
-          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center z-1000 cursor-pointer"
-          onClick={() => setShowLenses(false)}
-        >
-          <div
-            className="w-full max-w-[560px] mx-4 max-h-[85vh] overflow-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <HighlightLensesSection />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

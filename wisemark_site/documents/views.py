@@ -2,6 +2,7 @@ import hashlib
 
 from django.db.models import Count
 from django.db.models.deletion import ProtectedError
+from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -61,11 +62,6 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.user_id is None:
-            return Response(
-                {'detail': 'System lenses cannot be deleted.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:
@@ -76,13 +72,8 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='colors')
     def add_color(self, request, pk=None):
-        """Add a colour to a user-owned lens. System lenses are read-only."""
+        """Add a colour to a lens (system or user-owned)."""
         preset = self.get_object()
-        if preset.user_id is None:
-            return Response(
-                {'detail': 'Cannot add colours to system lenses.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         key = (request.data.get('key') or '').strip()
         display_name = (request.data.get('display_name') or '').strip()
         hex_val = (request.data.get('hex') or '').strip()
@@ -120,13 +111,8 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete', 'patch'], url_path=r'colors/(?P<color_pk>[^/.]+)')
     def manage_color(self, request, pk=None, color_pk=None):
-        """Update or remove a colour from a user-owned lens."""
+        """Update or remove a colour from a lens (system or user-owned)."""
         preset = self.get_object()
-        if preset.user_id is None:
-            return Response(
-                {'detail': 'Cannot modify system lenses.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         color = preset.colors.filter(pk=color_pk).first()
         if not color:
             return Response({'detail': 'Colour not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -173,6 +159,34 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if project_id:
             qs = qs.filter(project_id=project_id)
         return qs
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-delete: keep document row and highlights/notes; clear PDF bytes."""
+        doc = self.get_object()
+        doc.deleted_at = timezone.now()
+        doc.pdf_file = None
+        doc.file_size = 0
+        if doc.storage_location == StorageLocation.S3 and doc.s3_key:
+            try:
+                s3_storage.delete_pdf(doc.s3_key)
+            except Exception:
+                pass
+        doc.storage_location = StorageLocation.POSTGRES
+        doc.s3_key = None
+        doc.save(update_fields=['deleted_at', 'pdf_file', 'file_size', 'storage_location', 's3_key'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='remove')
+    def remove(self, request, pk=None):
+        """Permanently delete a removed PDF and all its highlights/notes. Only allowed when deleted_at is set."""
+        doc = self.get_object()
+        if not doc.deleted_at:
+            return Response(
+                {'detail': 'Only removed PDFs can be permanently removed. Delete the document first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        doc.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -281,9 +295,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='pdf')
     def pdf(self, request, pk=None):
         """Return the stored PDF bytes (postgres or s3)."""
-        doc = Document.objects.only('id', 'pdf_file', 'storage_location', 's3_key', 'project_id').get(
-            pk=self.kwargs['pk'], project__user=request.user,
-        )
+        doc = self.get_object()
+        if doc.deleted_at:
+            return Response(
+                {'detail': 'This PDF has been deleted.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         pdf_bytes = doc.get_pdf_bytes()
         if not pdf_bytes:
             return Response(
@@ -295,9 +312,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='upload_pdf')
     def upload_pdf(self, request, pk=None):
         """Store PDF bytes for a document that was created without them (e.g. metadata-only or legacy). File must match doc.pdf_hash."""
-        doc = Document.objects.only('id', 'pdf_hash', 'pdf_file', 'storage_location', 'file_size', 'project_id').get(
-            pk=self.kwargs['pk'], project__user=request.user,
-        )
+        doc = self.get_object()
+        if doc.deleted_at:
+            return Response(
+                {'detail': 'This PDF has been deleted. Highlights and notes are kept for reference.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         uploaded_file = request.FILES.get('file')
         if not uploaded_file or not (uploaded_file.name or '').lower().endswith('.pdf'):
             return Response(

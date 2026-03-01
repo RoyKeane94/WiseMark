@@ -12,7 +12,7 @@ const PALETTE = [
 const MAX_COLORS = 5;
 const MAX_CUSTOM_LENSES = 3;
 
-export default function HighlightLensesSection() {
+export default function HighlightLensesSection({ noCollapse = false }) {
   const queryClient = useQueryClient();
 
   const [createStep, setCreateStep] = useState(0);
@@ -30,7 +30,8 @@ export default function HighlightLensesSection() {
 
   const [editingColor, setEditingColor] = useState(null);
   const [editingColorName, setEditingColorName] = useState('');
-  const [lensesExpanded, setLensesExpanded] = useState(false);
+  const [lensesExpanded, setLensesExpanded] = useState(noCollapse);
+  const isExpanded = noCollapse || lensesExpanded;
 
   const { data: lenses = [] } = useQuery({
     queryKey: ['lenses'],
@@ -128,24 +129,31 @@ export default function HighlightLensesSection() {
 
   return (
     <section className="p-6 bg-white border border-slate-200 rounded-xl">
-      <button
-        type="button"
-        onClick={() => setLensesExpanded((e) => !e)}
-        className="w-full flex items-center justify-between gap-2 text-left rounded-lg hover:bg-slate-50 -m-2 p-2 transition-colors"
-        aria-expanded={lensesExpanded}
-      >
-        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+      {noCollapse ? (
+        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2 mb-2">
           <Palette className="w-4 h-4 text-slate-500 shrink-0" />
           Lenses
         </h2>
-        {lensesExpanded ? (
-          <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />
-        ) : (
-          <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
-        )}
-      </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setLensesExpanded((e) => !e)}
+          className="w-full flex items-center justify-between gap-2 text-left rounded-lg hover:bg-slate-50 -m-2 p-2 transition-colors"
+          aria-expanded={lensesExpanded}
+        >
+          <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <Palette className="w-4 h-4 text-slate-500 shrink-0" />
+            Lenses
+          </h2>
+          {lensesExpanded ? (
+            <ChevronDown className="w-5 h-5 text-slate-400 shrink-0" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+          )}
+        </button>
+      )}
 
-      {lensesExpanded && (
+      {isExpanded && (
         <>
           <p className="text-sm text-slate-500 mb-4 mt-2">
             Each lens has {MAX_COLORS} colour categories. You can create up to {MAX_CUSTOM_LENSES} custom lenses.
@@ -163,16 +171,14 @@ export default function HighlightLensesSection() {
                   </span>
                 )}
               </div>
-              {!l.is_system && (
-                <button
-                  type="button"
-                  onClick={() => setPendingDeleteLens(l)}
-                  className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                  title="Delete lens"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setPendingDeleteLens(l)}
+                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                title="Delete lens"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-1.5 items-center">
@@ -209,17 +215,15 @@ export default function HighlightLensesSection() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!l.is_system) {
-                            setEditingColor({ lensId: l.id, colorId: c.id });
-                            setEditingColorName(c.display_name);
-                          }
+                          setEditingColor({ lensId: l.id, colorId: c.id });
+                          setEditingColorName(c.display_name);
                         }}
-                        className={`text-[11px] text-slate-600 text-left truncate max-w-[120px] ${!l.is_system ? 'cursor-pointer hover:text-slate-800' : 'cursor-default'}`}
+                        className="text-[11px] text-slate-600 text-left truncate max-w-[120px] cursor-pointer hover:text-slate-800"
                       >
                         {c.display_name}
                       </button>
                     )}
-                    {!l.is_system && (l.colors?.length ?? 0) > 1 && !isEditing && (
+                    {(l.colors?.length ?? 0) > 1 && !isEditing && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -234,12 +238,12 @@ export default function HighlightLensesSection() {
                   </div>
                 );
               })}
-              {!l.is_system && (l.colors?.length ?? 0) > 1 && (
+              {(l.colors?.length ?? 0) > 1 && (
                 <p className="text-[10px] text-slate-400 italic mt-1">
                   Deleting a colour will not delete the comment.
                 </p>
               )}
-              {!l.is_system && (l.colors?.length ?? 0) < MAX_COLORS && (
+              {(l.colors?.length ?? 0) < MAX_COLORS && (
                 <button
                   type="button"
                   onClick={() => {

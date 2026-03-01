@@ -11,6 +11,10 @@ class Account(models.Model):
         related_name='wisemark_account',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    is_beta = models.BooleanField(
+        default=False,
+        help_text='True if user signed up with the private beta code.',
+    )
 
     class Meta:
         ordering = ['-created_at']

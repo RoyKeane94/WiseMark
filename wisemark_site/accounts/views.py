@@ -22,6 +22,7 @@ User = get_user_model()
 
 CODE_LENGTH = 6
 CODE_TTL_MINUTES = 10
+BETA_CODE = 'WM1994'
 
 
 def _generate_code():
@@ -137,6 +138,15 @@ def request_code(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    if intent == 'register':
+        beta_code = (request.data.get('beta_code') or '').strip()
+        if beta_code != BETA_CODE:
+            logger.warning('request_code 400: invalid or missing beta code (register)')
+            return Response(
+                {'detail': 'Invalid beta code.', 'beta_code': ['Enter the private beta access code.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     SignOnCode.objects.filter(email=email).delete()
 
     code = _generate_code()
@@ -181,13 +191,17 @@ def verify_code(request):
 
     user = User.objects.filter(email=email).first()
     is_new_user = user is None
+    beta_code = (request.data.get('beta_code') or '').strip()
 
     if is_new_user:
         user = User.objects.create_user(username=email, email=email, password=None)
         user.set_unusable_password()
         user.save()
 
-    Account.objects.get_or_create(user=user)
+    account, created = Account.objects.get_or_create(user=user)
+    if is_new_user and beta_code == BETA_CODE:
+        account.is_beta = True
+        account.save(update_fields=['is_beta'])
     token, _ = Token.objects.get_or_create(user=user)
 
     return Response({
@@ -213,6 +227,7 @@ def me(request):
         'username': request.user.username,
         'email': getattr(request.user, 'email', '') or '',
         'account_id': account.pk if account else None,
+        'is_beta': getattr(account, 'is_beta', False) if account else False,
     })
 
 

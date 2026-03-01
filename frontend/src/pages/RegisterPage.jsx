@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import { authAPI } from '../lib/api';
 import AuthLayout from '../components/AuthLayout';
@@ -8,9 +9,11 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const setToken = useAuthStore((s) => s.setToken);
   const [email, setEmail] = useState('');
+  const [betaCode, setBetaCode] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState('email');
   const [error, setError] = useState('');
+  const [betaCodeError, setBetaCodeError] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef([]);
 
@@ -21,9 +24,22 @@ export default function RegisterPage() {
   const handleRequestCode = async (e) => {
     e.preventDefault();
     setError('');
+    setBetaCodeError('');
+
+    const emailVal = email.trim();
+    const betaVal = betaCode.trim();
+    if (!emailVal) {
+      setError('Please enter your email address.');
+      return;
+    }
+    if (!betaVal) {
+      setBetaCodeError('Please enter your beta access code.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await authAPI.requestCode(email, 'register');
+      await authAPI.requestCode(emailVal, 'register', { beta_code: betaVal });
       setStep('code');
     } catch (err) {
       const data = err.response?.data;
@@ -31,7 +47,12 @@ export default function RegisterPage() {
         navigate('/login', { replace: true, state: { message: 'You already have an account. Please sign in.' } });
         return;
       }
-      setError(data?.detail || data?.email?.[0] || 'Failed to send code');
+      const msg = data?.detail || data?.beta_code?.[0] || data?.email?.[0] || 'Failed to send code';
+      if (data?.beta_code?.[0] || (data?.detail && data.detail.toLowerCase().includes('beta'))) {
+        setBetaCodeError(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -41,7 +62,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await authAPI.verifyCode(email, digits.join(''));
+      const { data } = await authAPI.verifyCode(email, digits.join(''), { beta_code: betaCode.trim() });
       setToken(data.token);
       navigate('/', { replace: true });
     } catch (err) {
@@ -95,13 +116,21 @@ export default function RegisterPage() {
       )}
 
       {error && (
-        <div className="text-[13px] text-[#c0392b] mb-4 min-h-[18px] transition-all duration-150 opacity-100 translate-y-0">
-          {error}
+        <div
+          className="flex items-center gap-2.5 px-3.5 py-3 mb-4 rounded-[7px] border transition-all duration-150"
+          style={{
+            backgroundColor: '#fef2f2',
+            borderColor: '#fecaca',
+            color: '#b91c1c',
+          }}
+        >
+          <AlertCircle className="shrink-0 w-4 h-4" style={{ color: '#b91c1c' }} />
+          <span className="text-[13px] font-medium">{error}</span>
         </div>
       )}
 
       {step === 'email' && (
-        <form onSubmit={handleRequestCode} className="flex flex-col gap-4">
+        <form onSubmit={handleRequestCode} noValidate className="flex flex-col gap-4">
           <label className="block">
             <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Email address</span>
             <input
@@ -112,10 +141,39 @@ export default function RegisterPage() {
                 error ? 'border-[#c0392b] shadow-[0_0_0_3px_rgba(192,57,43,0.07)]' : 'border-[#e2e6ef]'
               } focus:border-[#2d3a52] focus:bg-white focus:shadow-[0_0_0_3px_rgba(45,58,82,0.08)]`}
               placeholder="you@yourfirm.com"
-              required
               autoComplete="email"
               autoFocus
             />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Private beta code</span>
+            <input
+              type="text"
+              value={betaCode}
+              onChange={(e) => { setBetaCode(e.target.value); setBetaCodeError(''); setError(''); }}
+              className={`w-full px-3.5 py-3 text-[15px] text-[#1a1f2e] bg-[#f8f9fc] border rounded-[7px] outline-none transition-all duration-150 ${
+                betaCodeError ? 'border-[#c0392b] shadow-[0_0_0_3px_rgba(192,57,43,0.07)]' : 'border-[#e2e6ef]'
+              } focus:border-[#2d3a52] focus:bg-white focus:shadow-[0_0_0_3px_rgba(45,58,82,0.08)]`}
+              placeholder="Enter your beta access code"
+              autoComplete="off"
+              aria-invalid={!!betaCodeError}
+              aria-describedby={betaCodeError ? 'beta-code-error' : undefined}
+            />
+            {betaCodeError && (
+              <div
+                id="beta-code-error"
+                role="alert"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 mt-2 rounded-[7px] border transition-all duration-150"
+                style={{
+                  backgroundColor: '#fef2f2',
+                  borderColor: '#fecaca',
+                  color: '#b91c1c',
+                }}
+              >
+                <AlertCircle className="shrink-0 w-4 h-4" style={{ color: '#b91c1c' }} />
+                <span className="text-[13px] font-medium">{betaCodeError}</span>
+              </div>
+            )}
           </label>
           <button
             type="submit"

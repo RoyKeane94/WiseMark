@@ -165,6 +165,8 @@ export default function SummaryPage() {
   const [pendingDeleteHighlight, setPendingDeleteHighlight] = useState(null);
   const [pendingDeleteSelected, setPendingDeleteSelected] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [pendingDeleteAll, setPendingDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
 
@@ -341,6 +343,21 @@ export default function SummaryPage() {
       setDeletingSelected(false);
     }
   }, [id, selectedIds, queryClient]);
+
+  const confirmDeleteAllHighlights = useCallback(async () => {
+    if (!id) return;
+    setDeletingAll(true);
+    try {
+      await documentsAPI.remove(id);
+      queryClient.invalidateQueries({ queryKey: ['documents', document?.project] });
+      setPendingDeleteAll(false);
+      navigate(document?.project ? `/project/${document.project}` : '/app', { replace: true });
+    } catch (err) {
+      console.error('Failed to remove document', err);
+    } finally {
+      setDeletingAll(false);
+    }
+  }, [id, document?.project, queryClient, navigate]);
 
   const handleExportJSON = useCallback(() => {
     const payload = {
@@ -566,6 +583,22 @@ export default function SummaryPage() {
           </div>
         </div>
       </header>
+
+      {document?.deleted_at && (
+        <div className="mx-4 mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm flex flex-wrap items-center justify-between gap-2" role="status">
+          <span>This PDF has been removed. Your highlights and notes are kept for reference.</span>
+          {highlights?.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPendingDeleteAll(true)}
+              className="text-xs font-medium text-red-700 hover:text-red-800 border border-red-200 rounded-lg px-2.5 py-1.5 bg-white hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 inline-block align-middle mr-1" />
+              Delete all highlights and notes
+            </button>
+          )}
+        </div>
+      )}
 
       <main className="p-4 max-w-3xl mx-auto">
         {/* View tabs, search, export - all in one row */}
@@ -923,6 +956,48 @@ export default function SummaryPage() {
               >
                 {deletingSelected && <Loader2 className="w-4 h-4 animate-spin" />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete all highlights (removed PDF only) */}
+      {pendingDeleteAll && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => !deletingAll && setPendingDeleteAll(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              className="text-base font-semibold text-slate-800 mb-2"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Delete all highlights and notes?
+            </h3>
+            <p className="text-sm text-slate-600 mb-5">
+              This will permanently remove this PDF from Removed PDFs and delete all its highlights and notes. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteAll(false)}
+                disabled={deletingAll}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteAllHighlights}
+                disabled={deletingAll}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-70 flex items-center gap-2"
+              >
+                {deletingAll && <Loader2 className="w-4 h-4 animate-spin" />}
+                Delete all
               </button>
             </div>
           </div>

@@ -126,10 +126,10 @@ class DocumentSerializer(serializers.ModelSerializer):
             'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
             'storage_location',
             'color_labels', 'highlight_preset', 'highlight_preset_detail',
-            'annotation_count', 'last_opened_at',
+            'annotation_count', 'last_opened_at', 'deleted_at',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail', 'annotation_count', 'last_opened_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail', 'annotation_count', 'last_opened_at', 'deleted_at']
 
     def get_annotation_count(self, obj):
         if hasattr(obj, '_annotation_count'):
@@ -236,6 +236,7 @@ class LibraryHighlightSerializer(serializers.ModelSerializer):
     note = serializers.SerializerMethodField()
     document_id = serializers.IntegerField(source='document.id')
     document_name = serializers.CharField(source='document.filename')
+    document_deleted_at = serializers.DateTimeField(source='document.deleted_at', read_only=True, allow_null=True)
     project_id = serializers.IntegerField(source='document.project.id')
     project_name = serializers.CharField(source='document.project.name')
     project_color = serializers.CharField(source='document.project.color')
@@ -278,7 +279,7 @@ class LibraryHighlightSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'page_number', 'color', 'highlighted_text',
             'created_at', 'updated_at', 'note',
-            'document_id', 'document_name',
+            'document_id', 'document_name', 'document_deleted_at',
             'project_id', 'project_name', 'project_color',
             'color_display_name', 'color_hex',
         ]

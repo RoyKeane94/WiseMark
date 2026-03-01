@@ -34,38 +34,49 @@ function formatRelative(dateStr) {
 }
 
 function DocumentCard({ doc, lensMap, projectColor, hovered, onHover, onLeave, onOpen, onRename, onDelete }) {
+  const isDeleted = !!doc.deleted_at;
   const lens = lensMap[doc.highlight_preset] ?? lensMap._default;
   const lensColor = lens?.colors?.[0]?.hex ?? '#94a3b8';
-  const accentColor = doc.color && COLORS.includes(doc.color) ? doc.color : projectColor;
+  const accentColor = isDeleted ? '#94a3b8' : (doc.color && COLORS.includes(doc.color) ? doc.color : projectColor);
   const annCount = doc.annotation_count ?? 0;
+
+  const handleOpen = () => {
+    if (isDeleted) onOpen(doc.id, true);
+    else onOpen(doc.id);
+  };
 
   return (
     <div
       onMouseEnter={() => onHover(doc.id)}
       onMouseLeave={onLeave}
-      onClick={() => onOpen(doc.id)}
+      onClick={handleOpen}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onOpen(doc.id)}
-      className="flex items-center gap-3.5 rounded-xl bg-white px-4 py-3.5 cursor-pointer transition-shadow duration-200"
+      onKeyDown={(e) => e.key === 'Enter' && handleOpen()}
+      className={`flex items-center gap-3.5 rounded-xl px-4 py-3.5 cursor-pointer transition-shadow duration-200 ${isDeleted ? 'bg-slate-50' : 'bg-white'}`}
       style={{
         borderTop: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
         borderRight: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
         borderBottom: `1px solid ${hovered ? '#d1d5db' : '#e2e8f0'}`,
         borderLeft: `3px solid ${accentColor}`,
         boxShadow: hovered ? '0 2px 8px rgba(0,0,0,0.04)' : 'none',
-        background: hovered ? '#fafbfc' : '#fff',
+        background: hovered ? (isDeleted ? '#f1f5f9' : '#fafbfc') : (isDeleted ? '#f8fafc' : '#fff'),
       }}
     >
       <div className="flex-1 min-w-0">
         <div
-          className="text-[14.5px] font-medium text-slate-900 truncate leading-snug"
+          className={`text-[14.5px] font-medium truncate leading-snug ${isDeleted ? 'text-slate-500' : 'text-slate-900'}`}
           style={{ fontFamily: "'DM Sans', sans-serif" }}
         >
           {doc.filename?.replace(/\.pdf$/i, '')}
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {lens && (
+          {isDeleted && (
+            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 shrink-0">
+              Deleted PDF
+            </span>
+          )}
+          {!isDeleted && lens && (
             <span
               className="text-[11px] font-medium px-1.5 py-0.5 rounded"
               style={{
@@ -96,7 +107,11 @@ function DocumentCard({ doc, lensMap, projectColor, hovered, onHover, onLeave, o
       </div>
 
       <div className="flex items-center gap-2.5 shrink-0">
-        {annCount > 0 ? (
+        {isDeleted ? (
+          <span className="text-xs font-medium text-slate-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            View highlights
+          </span>
+        ) : annCount > 0 ? (
           <span className="text-xs font-medium text-slate-500" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             {annCount} note{annCount !== 1 ? 's' : ''}
           </span>
@@ -107,6 +122,7 @@ function DocumentCard({ doc, lensMap, projectColor, hovered, onHover, onLeave, o
         )}
       </div>
 
+      {!isDeleted && (
       <div
         className="flex items-center gap-0.5 shrink-0 transition-opacity duration-150"
         style={{ opacity: hovered ? 1 : 0 }}
@@ -128,6 +144,7 @@ function DocumentCard({ doc, lensMap, projectColor, hovered, onHover, onLeave, o
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
+      )}
 
       <ChevronRight
         className="w-4 h-4 shrink-0 transition-colors"
@@ -172,7 +189,9 @@ export default function ProjectDetailPage() {
     queryFn: async () => (await documentsAPI.list({ project: projectId })).data,
     enabled: !!projectId,
   });
-  const documents = Array.isArray(rawDocuments) ? rawDocuments : rawDocuments?.results ?? [];
+  const allDocuments = Array.isArray(rawDocuments) ? rawDocuments : rawDocuments?.results ?? [];
+  const documents = allDocuments.filter((d) => !d.deleted_at);
+  const deletedDocuments = allDocuments.filter((d) => d.deleted_at);
 
   const { data: lenses = [] } = useQuery({
     queryKey: ['lenses'],
@@ -456,12 +475,13 @@ export default function ProjectDetailPage() {
           <div className="flex items-center gap-2 text-slate-500 py-12">
             <Loader2 className="w-5 h-5 animate-spin" /> Loading PDFs…
           </div>
-        ) : documents.length === 0 ? (
+        ) : documents.length === 0 && deletedDocuments.length === 0 ? (
           <div className="rounded-xl border border-slate-200 p-8 text-center text-slate-500">
             <FileText className="w-12 h-12 mx-auto mb-3 text-slate-400" />
             <p>No PDFs in this project yet. Add a PDF above.</p>
           </div>
         ) : (
+          <>
           <div className="flex flex-col gap-1.5">
             {sorted.map((doc) =>
               editingId === doc.id ? (
@@ -489,17 +509,45 @@ export default function ProjectDetailPage() {
                   hovered={hoveredId === doc.id}
                   onHover={setHoveredId}
                   onLeave={() => setHoveredId(null)}
-                  onOpen={(id) => navigate(`/document/${id}`)}
+                  onOpen={(id, goToSummary) => navigate(goToSummary ? `/document/${id}/summary` : `/document/${id}`)}
                   onRename={startRename}
                   onDelete={(d) => setPendingDeleteDoc(d)}
                 />
               )
             )}
           </div>
+
+          {deletedDocuments.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-sm font-semibold text-slate-500 mb-2" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                Removed PDFs
+              </h2>
+              <p className="text-xs text-slate-400 mb-3">
+                Highlights and notes are kept for reference. Click to view.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {deletedDocuments.map((doc) => (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    lensMap={lensMap}
+                    projectColor={projectColor}
+                    hovered={hoveredId === doc.id}
+                    onHover={setHoveredId}
+                    onLeave={() => setHoveredId(null)}
+                    onOpen={(id, goToSummary) => navigate(goToSummary ? `/document/${id}/summary` : `/document/${id}`)}
+                    onRename={startRename}
+                    onDelete={(d) => setPendingDeleteDoc(d)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* Drop zone */}
-        {documents.length > 0 && (
+        {(documents.length > 0 || deletedDocuments.length > 0) && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -592,7 +640,7 @@ export default function ProjectDetailPage() {
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: "'Instrument Serif', serif" }}>Delete document?</h3>
             <p className="text-sm text-slate-600 mb-6">
-              This will permanently delete <strong>{pendingDeleteDoc.filename?.replace(/\.pdf$/i, '')}</strong> and all its annotations.
+              The PDF will be removed. Your highlights and notes will be kept and shown under “Removed PDFs” below.
             </p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setPendingDeleteDoc(null)} disabled={deleteDoc.isPending} className="px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50">Cancel</button>
