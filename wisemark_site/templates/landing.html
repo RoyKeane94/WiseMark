@@ -197,10 +197,10 @@
     color: var(--white); font-weight: 400;
   }
 
-  /* PROBLEM SECTION */
+  /* PROBLEM SECTION — max-width includes padding so inner content matches .demo-intro (760px) */
   .problem {
     padding: 7rem 2.5rem 3rem;
-    max-width: 760px;
+    max-width: calc(760px + 5rem);
     margin: 0 auto;
   }
 
@@ -214,11 +214,10 @@
     line-height: 1.25; font-weight: 400;
     color: var(--slate-950);
     margin-bottom: 2rem;
-    max-width: 600px;
   }
 
   .problem-text {
-    font-size: 1.05rem; line-height: 1.75;
+    font-size: 1.05rem; line-height: 1.7;
     color: var(--slate-600);
     margin-bottom: 1.25rem;
   }
@@ -242,18 +241,29 @@
     margin-bottom: 1.25rem;
   }
 
+  .demo .section-label { margin-bottom: 1.25rem; }
+  .demo-intro {
+    max-width: 760px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
   .demo h2 {
     font-family: 'Instrument Serif', serif;
     font-size: clamp(1.9rem, 3.5vw, 2.6rem);
     line-height: 1.2; font-weight: 400;
     color: var(--slate-950);
-    max-width: 560px;
     margin-bottom: 1rem;
   }
 
-  .demo > p.demo-lead {
-    font-size: 1rem; color: var(--slate-500);
-    max-width: 520px; line-height: 1.65;
+  /* Shared section body text - same width and size everywhere */
+  .problem-text,
+  .demo-intro .demo-lead {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--slate-600);
+  }
+  .demo-intro .demo-lead {
     margin-bottom: 3.5rem;
   }
 
@@ -463,9 +473,9 @@
     margin-bottom: 1rem;
   }
 
+  .pipeline-intro { max-width: 760px; }
   .pipeline-lead {
-    font-size: 1rem; line-height: 1.65; color: var(--slate-500);
-    max-width: 520px;
+    font-size: 1.05rem; line-height: 1.7; color: var(--slate-600);
     margin-bottom: 3rem;
   }
 
@@ -755,9 +765,11 @@
 
 <!-- DEMO -->
 <section class="demo" id="how">
-  <div class="section-label fade-in">How it works</div>
-  <h2 class="fade-in">A smarter way to read. Structured data as a byproduct.</h2>
-  <p class="demo-lead fade-in">Set up your lenses: up to five categories that reflect how you analyse. As you read, highlight any passage that matters, tag it and add your thoughts. WiseMark captures the exact quote, the page reference, and your commentary. By the time you finish the document, your analysis is organised and exportable. Ready to share or to write from. And every highlight you've made is now structured, searchable data.</p>
+  <div class="demo-intro">
+    <div class="section-label fade-in">How it works</div>
+    <h2 class="fade-in">A smarter way to read. Structured data as a byproduct.</h2>
+    <p class="demo-lead fade-in">Set up your lenses: up to five categories that reflect how you analyse. As you read, highlight any passage that matters, tag it and add your thoughts. WiseMark captures the exact quote, the page reference, and your commentary. By the time you finish the document, your analysis is organised and exportable. Ready to share or to write from. And every highlight you've made is now structured, searchable data.</p>
+  </div>
   <div class="demo-window fade-in">
     <div class="demo-titlebar">
       <div class="demo-dot r"></div>
@@ -839,9 +851,11 @@
 <!-- PIPELINE -->
 <section class="pipeline" id="pipeline">
   <div class="pipeline-inner">
-    <div class="section-label fade-in">Where this is going</div>
-    <h2 class="fade-in">Capture. Organise. Interrogate.</h2>
-    <p class="pipeline-lead fade-in">Each stage is independently valuable. Each one makes the next more powerful.</p>
+    <div class="pipeline-intro">
+      <div class="section-label fade-in">Where this is going</div>
+      <h2 class="fade-in">Capture. Organise. Interrogate.</h2>
+      <p class="pipeline-lead fade-in">Each stage is independently valuable. Each one makes the next more powerful.</p>
+    </div>
     <div class="stages fade-in">
       <div class="stg">
         <div class="stg-num">Stage 01</div>
