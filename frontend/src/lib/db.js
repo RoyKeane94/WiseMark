@@ -4,11 +4,13 @@ import { documentsAPI } from './api';
 const db = new Dexie('WiseMarkDB');
 db.version(1).stores({ pdfs: 'hash, filename, size, blob' });
 
+/** SHA-256 hash of PDF bytes, lowercase hex. Must match backend so S3 keys align. */
 export async function calculateHash(buffer) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+    .join('')
+    .toLowerCase();
 }
 
 export async function storePDF(hash, filename, size, arrayBuffer) {

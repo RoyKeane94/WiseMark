@@ -139,12 +139,29 @@ class Document(models.Model):
         return HighlightPreset.objects.filter(user__isnull=True).order_by('name').first()
 
     def get_pdf_bytes(self):
-        """Return PDF bytes from current storage. Postgres: from pdf_file; S3: fetch from S3."""
+        """Return PDF bytes from current storage. Postgres: from pdf_file; S3: fetch from S3.
+        If the DB says Postgres but has no bytes (or S3 key fetch failed), tries S3 with
+        pdfs/{pdf_hash}.pdf so documents that are in S3 but have a stale/missing DB state still work.
+        """
         if self.storage_location == StorageLocation.POSTGRES and self.pdf_file:
             return bytes(self.pdf_file)
         if self.storage_location == StorageLocation.S3 and self.s3_key:
             from .s3_storage import get_pdf_bytes as s3_get
-            return s3_get(self.s3_key)
+            data = s3_get(self.s3_key)
+            if data:
+                return data
+        # Fallback: try S3 by pdf_hash (file may be in S3 but DB never updated or key wrong)
+        if self.pdf_hash:
+            from . import s3_storage
+            if s3_storage.is_s3_configured():
+                norm_hash = (self.pdf_hash or "").strip().lower()
+                key = f"{s3_storage.S3_PREFIX}{norm_hash}.pdf"
+                data = s3_storage.get_pdf_bytes(key)
+                if data:
+                    self.storage_location = StorageLocation.S3
+                    self.s3_key = key
+                    self.save(update_fields=["storage_location", "s3_key"])
+                    return data
         return None
 
 

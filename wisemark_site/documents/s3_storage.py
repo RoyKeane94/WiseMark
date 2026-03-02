@@ -28,13 +28,18 @@ def _get_client():
     )
 
 
+def _normalize_hash(pdf_hash: str) -> str:
+    """Canonical form for S3 keys and DB: lowercase hex, no whitespace."""
+    return (pdf_hash or "").strip().lower()
+
+
 def upload_pdf_bytes(pdf_hash: str, file_bytes: bytes) -> str:
     """
-    Upload PDF bytes to S3. Key is pdfs/{pdf_hash}.pdf.
+    Upload PDF bytes to S3. Key is pdfs/{pdf_hash}.pdf (hash normalized to lowercase).
     Returns the S3 key (for storing in Document.s3_key).
     """
     bucket = settings.AWS_STORAGE_BUCKET_NAME
-    key = f"{S3_PREFIX}{pdf_hash}.pdf"
+    key = f"{S3_PREFIX}{_normalize_hash(pdf_hash)}.pdf"
     client = _get_client()
     client.put_object(
         Bucket=bucket,

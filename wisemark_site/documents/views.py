@@ -1,6 +1,9 @@
 import hashlib
+import logging
 
 from django.db.models import Count
+
+logger = logging.getLogger(__name__)
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.http import HttpResponse
@@ -25,7 +28,8 @@ from .serializers import (
 
 
 def _compute_pdf_hash(file_bytes):
-    return hashlib.sha256(file_bytes).hexdigest()
+    """Canonical SHA-256 hash (lowercase hex) for PDF bytes. Use this for DB and S3 keys."""
+    return hashlib.sha256(file_bytes).hexdigest().lower()
 
 
 def _preset_queryset(request):
@@ -243,12 +247,17 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 storage_location = StorageLocation.S3
                 pdf_file = None
             else:
+                logger.warning(
+                    "S3 not configured (AWS_STORAGE_BUCKET_NAME unset); storing PDF in Postgres. "
+                    "Set AWS_STORAGE_BUCKET_NAME (and AWS credentials) to use S3."
+                )
                 storage_location = StorageLocation.POSTGRES
                 pdf_file = file_bytes
                 s3_key = None
         else:
-            # JSON-only (legacy): metadata only, no file stored on server
-            pdf_hash = (request.data.get('pdf_hash') or '').strip()
+            # JSON-only (legacy): metadata only, no file stored on server.
+            # Normalize client-supplied hash so it matches S3 key format (lowercase hex).
+            pdf_hash = (request.data.get('pdf_hash') or '').strip().lower()
             filename = (request.data.get('filename') or '').strip()
             file_size = request.data.get('file_size')
             if not pdf_hash or not filename:
@@ -303,6 +312,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         pdf_bytes = doc.get_pdf_bytes()
         if not pdf_bytes:
+            if doc.storage_location == StorageLocation.S3 and doc.s3_key:
+                return Response(
+                    {'detail': 'PDF could not be retrieved from S3. Check server logs and S3 credentials/bucket.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
             return Response(
                 {'detail': 'PDF file is not stored on the server for this document.'},
                 status=status.HTTP_404_NOT_FOUND,
@@ -326,20 +340,26 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         file_bytes = uploaded_file.read()
         computed_hash = _compute_pdf_hash(file_bytes)
-        if computed_hash != doc.pdf_hash:
+        doc_hash_normalized = (doc.pdf_hash or "").strip().lower()
+        if computed_hash != doc_hash_normalized:
             return Response(
                 {'detail': 'This file does not match the original document.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         file_size = len(file_bytes)
         if s3_storage.is_s3_configured():
-            s3_key = s3_storage.upload_pdf_bytes(doc.pdf_hash, file_bytes)
+            s3_key = s3_storage.upload_pdf_bytes(computed_hash, file_bytes)
             doc.storage_location = StorageLocation.S3
             doc.s3_key = s3_key
             doc.pdf_file = None
+            doc.pdf_hash = computed_hash
             doc.file_size = file_size
-            doc.save(update_fields=['pdf_file', 'storage_location', 's3_key', 'file_size'])
+            doc.save(update_fields=['pdf_file', 'storage_location', 's3_key', 'pdf_hash', 'file_size'])
         else:
+            logger.warning(
+                "S3 not configured (AWS_STORAGE_BUCKET_NAME unset); storing PDF in Postgres. "
+                "Set AWS_STORAGE_BUCKET_NAME (and AWS credentials) to use S3."
+            )
             doc.pdf_file = file_bytes
             doc.storage_location = StorageLocation.POSTGRES
             doc.s3_key = None
