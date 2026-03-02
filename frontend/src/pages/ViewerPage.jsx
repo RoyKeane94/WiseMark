@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI } from '../lib/api';
@@ -10,7 +10,7 @@ import AnnotationsSidebar from '../components/AnnotationsSidebar';
 import ColorPicker from '../components/ColorPicker';
 import EditLensModal from '../components/EditPresetModal';
 import EditNotePopover from '../components/EditNotePopover';
-import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack, BookOpen } from 'lucide-react';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border, dividerV } from '../lib/theme';
 
 export default function ViewerPage() {
@@ -33,6 +33,7 @@ export default function ViewerPage() {
   const [openEditForHighlightId, setOpenEditForHighlightId] = useState(null);
   const [editPopover, setEditPopover] = useState(null);
   const [pendingLensSwitch, setPendingLensSwitch] = useState(null);
+  const lastLoadedPdfHashRef = useRef(null);
 
   const {
     data: document,
@@ -56,6 +57,9 @@ export default function ViewerPage() {
 
   useEffect(() => {
     if (!document || !id || document?.deleted_at) return;
+    if (lastLoadedPdfHashRef.current === document.pdf_hash) return;
+    lastLoadedPdfHashRef.current = document.pdf_hash;
+    setPdfData(null);
     let cancelled = false;
     const load = async () => {
       setLoadingPdf(true);
@@ -188,6 +192,57 @@ export default function ViewerPage() {
   }, []);
 
   const handleNumPages = useCallback((num) => setTotalPages(num ?? 0), []);
+
+  // Compute the most recent highlight by created_at
+  const latestHighlight = useMemo(() => {
+    if (!highlights || highlights.length === 0) return null;
+    return highlights.reduce((latest, h) => {
+      if (!latest) return h;
+      const latestTime = new Date(latest.created_at).getTime();
+      const time = new Date(h.created_at).getTime();
+      return time > latestTime ? h : latest;
+    }, null);
+  }, [highlights]);
+
+  // Track which page is in view when user scrolls
+  const pageVisibilityRef = useRef({});
+  useEffect(() => {
+    if (!pdfData || totalPages < 1) return;
+    const container = window.document.getElementById('pdf-scroll-container');
+    if (!container) return;
+    const pageEls = container.querySelectorAll('[data-page]');
+    if (pageEls.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const page = Number(entry.target.getAttribute('data-page'));
+          if (page) pageVisibilityRef.current[page] = entry.intersectionRatio;
+        });
+        const ratios = pageVisibilityRef.current;
+        let bestPage = 1;
+        let bestRatio = 0;
+        Object.entries(ratios).forEach(([p, r]) => {
+          if (r > bestRatio) {
+            bestRatio = r;
+            bestPage = Number(p);
+          }
+        });
+        if (bestRatio > 0) setCurrentPage(bestPage);
+      },
+      { root: container, rootMargin: '-15% 0px', threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] }
+    );
+    pageEls.forEach((el) => observer.observe(el));
+    return () => {
+      pageVisibilityRef.current = {};
+      observer.disconnect();
+    };
+  }, [pdfData, totalPages]);
+
+  const handleResumeReading = useCallback(() => {
+    if (!latestHighlight) return;
+    handleScrollToPage(latestHighlight.page_number);
+    setActiveHighlightId(latestHighlight.id);
+  }, [latestHighlight, handleScrollToPage]);
 
   const handlePrevPage = useCallback(() => {
     if (currentPage <= 1) return;
@@ -504,6 +559,21 @@ export default function ViewerPage() {
         <div
           className={`fixed bottom-0 left-0 z-10 flex items-center justify-center gap-2 border-t border-slate-200 bg-white py-2.5 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] ${sidebarOpen ? 'right-80' : 'right-0'}`}
         >
+          {latestHighlight && (
+            <button
+              type="button"
+              onClick={handleResumeReading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-slate-50 text-slate-700 text-xs font-medium hover:bg-slate-100 cursor-pointer"
+              title={`Go to latest highlight on page ${latestHighlight.page_number}`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Pick up where you left off
+              {latestHighlight.page_number > 1 && (
+                <span className="text-slate-500">(p. {latestHighlight.page_number})</span>
+              )}
+            </button>
+          )}
+          {latestHighlight && <div className="w-px h-5 bg-slate-200" />}
           <button
             type="button"
             onClick={handlePrevPage}

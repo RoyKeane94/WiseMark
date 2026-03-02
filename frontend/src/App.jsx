@@ -50,8 +50,8 @@ function HomeRoute() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <BrowserRouter>
+      <BrowserRouter>
+        <ErrorBoundary>
           <Routes>
           <Route
             path="/login"
@@ -119,9 +119,9 @@ export default function App() {
             }
           />
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        </BrowserRouter>
-      </ErrorBoundary>
+          </Routes>
+        </ErrorBoundary>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }
