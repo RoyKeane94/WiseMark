@@ -722,6 +722,23 @@
   </div>
 </nav>
 
+<script>
+(function() {
+  try {
+    var raw = localStorage.getItem('wisemark-auth');
+    if (raw) {
+      var data = JSON.parse(raw);
+      if (data && data.state && data.state.token) {
+        var wrap = document.querySelector('.nav-cta-wrap');
+        if (wrap) {
+          wrap.innerHTML = '<a href="/app" class="nav-cta">My Projects</a>';
+        }
+      }
+    }
+  } catch (e) {}
+})();
+</script>
+
 <!-- HERO -->
 <section class="hero">
   <div class="hero-eyebrow">Built for people who actually read the documents</div>
