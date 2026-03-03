@@ -366,11 +366,12 @@ export default function SummaryPage() {
       highlights: filteredHighlights.map((h) => ({
         id: h.id,
         page_number: h.page_number,
-        color: h.color,
+        category_name:
+          h.color_display_name ??
+          getColorDisplayName(h.color, document?.color_labels, lensColors),
         highlighted_text: h.highlighted_text,
         note: h.note?.content,
         created_at: h.created_at,
-        updated_at: h.updated_at,
       })),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -383,7 +384,7 @@ export default function SummaryPage() {
     a.click();
     URL.revokeObjectURL(url);
     setShowExport(false);
-  }, [document?.filename, filteredHighlights]);
+  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
 
   const handleExportDocx = useCallback(async () => {
     try {
