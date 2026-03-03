@@ -286,7 +286,7 @@ export default function ViewerPage() {
     return null;
   }
 
-  if (docLoading || loadingPdf) {
+  if (docLoading) {
     return (
       <div className={`${pageWrapper} flex items-center justify-center min-h-[50vh]`}>
         <Loader2 className={`w-8 h-8 ${text.muted} animate-spin`} />
@@ -403,6 +403,12 @@ export default function ViewerPage() {
       </header>
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-auto flex flex-col relative pb-14" id="pdf-scroll-container">
+          {!pdfData && loadingPdf && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <Loader2 className={`w-7 h-7 ${text.muted} animate-spin`} />
+              <p className={`text-xs ${text.secondary}`}>Loading PDF…</p>
+            </div>
+          )}
           {pdfData && (
             <PDFRenderer
               pdfData={pdfData}

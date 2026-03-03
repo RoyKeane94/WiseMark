@@ -19,6 +19,10 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30000,
       retry: 1,
+      // Keep the UI feeling stable when switching tabs or reconnecting:
+      // we rely on explicit invalidations instead of auto-refetch on focus.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
   },
 });
