@@ -20,9 +20,12 @@ export default function AnnotationsSidebar({
   onHighlightDelete,
   openEditForHighlightId,
   onClearOpenEditForHighlightId,
-  searchQuery = '',
+  searchQuery: searchQueryProp = '',
   onSearchChange,
 }) {
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const searchQuery = onSearchChange != null ? searchQueryProp : localSearchQuery;
+
   const colorKeysForFilter = lensColors?.length > 0
     ? lensColors.map((c) => c.key)
     : (documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS);
@@ -160,7 +163,11 @@ export default function AnnotationsSidebar({
             type="text"
             placeholder="Search highlights..."
             value={searchQuery}
-            onChange={(e) => onSearchChange?.(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (onSearchChange) onSearchChange(v);
+              else setLocalSearchQuery(v);
+            }}
             className={`w-full pl-8 pr-3 py-1.5 text-xs border ${border.default} rounded-lg bg-slate-50 outline-none ${text.body} placeholder:${text.muted}`}
           />
         </div>
