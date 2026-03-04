@@ -86,4 +86,7 @@ export const documentsAPI = {
 
 export const publicDocumentsAPI = {
   getSummary: (token) => api.get(`/public/documents/${token}/summary/`),
+  /** Get PDF bytes for a shared document by token. Returns ArrayBuffer. */
+  getPdf: (token) =>
+    api.get(`/public/documents/${token}/pdf/`, { responseType: 'arraybuffer' }),
 };

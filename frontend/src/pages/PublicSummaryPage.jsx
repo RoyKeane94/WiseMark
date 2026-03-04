@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  BookOpen,
 } from 'lucide-react';
 
 export default function PublicSummaryPage() {
@@ -624,7 +625,14 @@ export default function PublicSummaryPage() {
             />
           </div>
 
-          <div className="relative shrink-0">
+          <div className="relative shrink-0 flex items-center gap-2">
+            <Link
+              to={`/share/${token}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} no-underline`}
+            >
+              <BookOpen className="w-4 h-4" />
+              View PDF with highlights
+            </Link>
             <button
               type="button"
               onClick={() => setShowExport((v) => !v)}

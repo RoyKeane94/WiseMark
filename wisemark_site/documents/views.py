@@ -528,3 +528,26 @@ class PublicDocumentSummaryView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class PublicDocumentPdfView(APIView):
+    """Public, read-only: return PDF bytes for a shared document by token."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
+        if not doc:
+            return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
+        pdf_bytes = doc.get_pdf_bytes()
+        if not pdf_bytes:
+            if doc.storage_location == StorageLocation.S3 and doc.s3_key:
+                return Response(
+                    {'detail': 'PDF could not be retrieved from storage.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            return Response(
+                {'detail': 'PDF is not available for this shared document.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return HttpResponse(pdf_bytes, content_type='application/pdf')

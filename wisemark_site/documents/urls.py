@@ -10,5 +10,6 @@ router.register(r'documents', views.DocumentViewSet, basename='document')
 urlpatterns = [
     path('library/', views.LibraryView.as_view(), name='library'),
     path('public/documents/<str:token>/summary/', views.PublicDocumentSummaryView.as_view(), name='public-document-summary'),
+    path('public/documents/<str:token>/pdf/', views.PublicDocumentPdfView.as_view(), name='public-document-pdf'),
     path('', include(router.urls)),
 ]

@@ -14,6 +14,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import ErrorPage from './pages/ErrorPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import PublicSummaryPage from './pages/PublicSummaryPage';
+import PublicViewerPage from './pages/PublicViewerPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,6 +125,7 @@ export default function App() {
             }
           />
           <Route path="/share/:token/summary" element={<PublicSummaryPage />} />
+          <Route path="/share/:token" element={<PublicViewerPage />} />
           <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </ErrorBoundary>
