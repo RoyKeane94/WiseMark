@@ -20,13 +20,14 @@ export default function AnnotationsSidebar({
   onHighlightDelete,
   openEditForHighlightId,
   onClearOpenEditForHighlightId,
+  searchQuery = '',
+  onSearchChange,
 }) {
   const colorKeysForFilter = lensColors?.length > 0
     ? lensColors.map((c) => c.key)
     : (documentColorKeys?.length > 0 ? documentColorKeys : HIGHLIGHT_COLOR_KEYS);
   const [colorFilter, setColorFilter] = useState('all');
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
 
@@ -159,7 +160,7 @@ export default function AnnotationsSidebar({
             type="text"
             placeholder="Search highlights..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => onSearchChange?.(e.target.value)}
             className={`w-full pl-8 pr-3 py-1.5 text-xs border ${border.default} rounded-lg bg-slate-50 outline-none ${text.body} placeholder:${text.muted}`}
           />
         </div>
