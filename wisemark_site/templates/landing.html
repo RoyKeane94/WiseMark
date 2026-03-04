@@ -722,7 +722,7 @@
   </div>
 </nav>
 
-<script>
+<script nonce="{{ request.csp_nonce|default_if_none:'' }}">
 (function() {
   try {
     var raw = localStorage.getItem('wisemark-auth');
