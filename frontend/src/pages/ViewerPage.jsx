@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI } from '../lib/api';
 import WiseMarkDropdown from '../components/WiseMarkDropdown';
-import { getPDFForDocument, calculateHash, storePDF } from '../lib/db';
+import { getPDF, getPDFForDocument, calculateHash, storePDF } from '../lib/db';
 import { HIGHLIGHT_COLOR_KEYS } from '../lib/colors';
 import PDFRenderer from '../components/PDFRenderer';
 import AnnotationsSidebar from '../components/AnnotationsSidebar';
@@ -62,6 +62,13 @@ export default function ViewerPage() {
     setPdfData(null);
     let cancelled = false;
     const load = async () => {
+      const cached = await getPDF(document.pdf_hash);
+      if (cancelled) return;
+      if (cached) {
+        setPdfData(cached.data);
+        setLoadingPdf(false);
+        return;
+      }
       setLoadingPdf(true);
       try {
         const pdf = await getPDFForDocument(document);
