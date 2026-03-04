@@ -377,14 +377,6 @@ export default function SummaryPage() {
       }
       setShareUrl(url);
       setShareModalOpen(true);
-      if (navigator.clipboard?.writeText) {
-        try {
-          await navigator.clipboard.writeText(url);
-          setShareCopied(true);
-        } catch (err) {
-          console.error('Failed to copy public summary link', err);
-        }
-      }
     } catch (err) {
       console.error('Failed to generate public summary link', err);
       const msg =
