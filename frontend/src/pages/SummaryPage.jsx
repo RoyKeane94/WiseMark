@@ -402,33 +402,167 @@ export default function SummaryPage() {
           spacing: { after: 200 },
         }),
       ];
-      for (const h of filteredHighlights) {
-        const colorDisplay = h.color_display_name ?? getColorDisplayName(h.color, document?.color_labels, lensColors);
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `[${colorDisplay}] p.${h.page_number}`,
-                bold: true,
-                size: 20,
-              }),
-            ],
-            spacing: { before: 120, after: 60 },
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: h.highlighted_text || '', size: 22 })],
-            spacing: { after: 60 },
-          })
-        );
-        if (h.note?.content) {
+      if (view === 'sequence') {
+        // 4. Sequence view: Category name bold at start, then quote in quotes, page in italics.
+        for (const h of filteredHighlights) {
+          const colorDisplay =
+            h.color_display_name ??
+            getColorDisplayName(h.color, document?.color_labels, lensColors);
+          const quote = h.highlighted_text || '';
           children.push(
             new Paragraph({
               children: [
-                new TextRun({ text: `Note: ${h.note.content}`, italics: true, size: 20 }),
+                new TextRun({
+                  text: `${colorDisplay}: `,
+                  bold: true,
+                  size: 22,
+                }),
+                new TextRun({
+                  text: `"${quote}"`,
+                  size: 22,
+                }),
+                new TextRun({
+                  text: `, `,
+                  size: 22,
+                }),
+                new TextRun({
+                  text: `p.${h.page_number}`,
+                  italics: true,
+                  size: 20,
+                }),
               ],
-              spacing: { after: 120 },
+              spacing: { before: 120, after: h.note?.content ? 20 : 60 },
             })
           );
+          if (h.note?.content) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: h.note.content,
+                    italics: true,
+                    size: 20,
+                  }),
+                ],
+                spacing: { after: 80 },
+              })
+            );
+          }
+        }
+      } else if (view === 'topic') {
+        // 5. Topic view: category header, then bullet points for each quote, notes as sub-bullets.
+        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
+          const name =
+            items[0]?.color_display_name ??
+            getColorDisplayName(topicKey, document?.color_labels, lensColors);
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: name,
+                  bold: true,
+                  size: 24,
+                }),
+              ],
+              spacing: { before: 160, after: 40 },
+            })
+          );
+          for (const h of items) {
+            const quote = h.highlighted_text || '';
+            children.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [
+                  new TextRun({
+                    text: `"${quote}"`,
+                    size: 22,
+                  }),
+                  new TextRun({
+                    text: `, `,
+                    size: 22,
+                  }),
+                  new TextRun({
+                    text: `p.${h.page_number}`,
+                    italics: true,
+                    size: 20,
+                  }),
+                ],
+              })
+            );
+            if (h.note?.content) {
+              children.push(
+                new Paragraph({
+                  bullet: { level: 1 },
+                  children: [
+                    new TextRun({
+                      text: h.note.content,
+                      size: 20,
+                    }),
+                  ],
+                })
+              );
+            }
+          }
+        }
+      } else if (view === 'page') {
+        // 6. Page view: page header, bullets with Category (bold), quote, page, notes as sub-bullets.
+        for (const { page, items } of groupedByPage) {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Page ${page}`,
+                  bold: true,
+                  size: 24,
+                }),
+              ],
+              spacing: { before: 160, after: 40 },
+            })
+          );
+          for (const h of items) {
+            const colorDisplay =
+              h.color_display_name ??
+              getColorDisplayName(h.color, document?.color_labels, lensColors);
+            const quote = h.highlighted_text || '';
+            children.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [
+                  new TextRun({
+                    text: `${colorDisplay}: `,
+                    bold: true,
+                    size: 22,
+                  }),
+                  new TextRun({
+                    text: `"${quote}"`,
+                    size: 22,
+                  }),
+                  new TextRun({
+                    text: `, `,
+                    size: 22,
+                  }),
+                  new TextRun({
+                    text: `p.${h.page_number}`,
+                    italics: true,
+                    size: 20,
+                  }),
+                ],
+              })
+            );
+            if (h.note?.content) {
+              children.push(
+                new Paragraph({
+                  bullet: { level: 1 },
+                  children: [
+                    new TextRun({
+                      text: h.note.content,
+                      size: 20,
+                    }),
+                  ],
+                })
+              );
+            }
+          }
         }
       }
       const doc = new Document({
@@ -443,7 +577,7 @@ export default function SummaryPage() {
     } catch (err) {
       console.error('Export docx failed', err);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
+  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
 
   const handleExportPdf = useCallback(async () => {
     try {
