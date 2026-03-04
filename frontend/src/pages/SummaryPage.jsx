@@ -878,7 +878,15 @@ export default function SummaryPage() {
           </button>
           <div>
             <h1 className={`text-base font-semibold ${text.heading}`}>Summary</h1>
-            <p className={`text-xs ${text.muted} truncate max-w-xs`}>{document?.filename}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={`text-xs ${text.muted} truncate max-w-xs`}>{document?.filename}</p>
+              {document?.is_publicly_shared && (
+                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0 flex items-center gap-1">
+                  <Share2 className="w-3 h-3" />
+                  Shared
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </header>

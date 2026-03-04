@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { documentsAPI, projectsAPI, lensesAPI } from '../lib/api';
 import { calculateHash, storePDF } from '../lib/db';
-import { Upload, Loader2, FileText, Trash2, Pencil, Check, X, ChevronRight } from 'lucide-react';
+import { Upload, Loader2, FileText, Trash2, Pencil, Check, X, ChevronRight, Share2 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import WiseMarkDropdown from '../components/WiseMarkDropdown';
 
@@ -85,6 +85,12 @@ function DocumentCard({ doc, lensMap, projectColor, hovered, onHover, onLeave, o
               }}
             >
               {lens.name}
+            </span>
+          )}
+          {doc.is_publicly_shared && (
+            <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0 flex items-center gap-1">
+              <Share2 className="w-3 h-3" />
+              Shared
             </span>
           )}
           {formatDate(doc.created_at) && (

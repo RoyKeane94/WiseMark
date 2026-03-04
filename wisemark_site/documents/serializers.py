@@ -119,6 +119,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     )
     highlight_preset_detail = serializers.SerializerMethodField()
     annotation_count = serializers.SerializerMethodField()
+    is_publicly_shared = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -126,15 +127,18 @@ class DocumentSerializer(serializers.ModelSerializer):
             'id', 'project', 'pdf_hash', 'filename', 'color', 'file_size',
             'storage_location',
             'color_labels', 'highlight_preset', 'highlight_preset_detail',
-            'annotation_count', 'last_opened_at', 'deleted_at',
+            'annotation_count', 'is_publicly_shared', 'last_opened_at', 'deleted_at',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail', 'annotation_count', 'last_opened_at', 'deleted_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'highlight_preset_detail', 'annotation_count', 'is_publicly_shared', 'last_opened_at', 'deleted_at']
 
     def get_annotation_count(self, obj):
         if hasattr(obj, '_annotation_count'):
             return obj._annotation_count
         return obj.highlights.count()
+
+    def get_is_publicly_shared(self, obj):
+        return bool(getattr(obj, 'public_share_token', None) and str(obj.public_share_token).strip())
 
     def _get_default_system_preset(self):
         """Cache the default system preset so we don't query once per document."""
