@@ -588,27 +588,135 @@ export default function SummaryPage() {
       doc.setFontSize(16);
       doc.text(document?.filename ?? 'Document Summary', 20, y);
       y += 12;
-      for (const h of filteredHighlights) {
-        const colorDisplay = h.color_display_name ?? getColorDisplayName(h.color, document?.color_labels, lensColors);
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text(`[${colorDisplay}] p.${h.page_number}`, 20, y);
-        y += 6;
-        doc.setFont(undefined, 'normal');
-        const lines = doc.splitTextToSize(h.highlighted_text || '', 170);
-        doc.text(lines, 20, y);
-        y += lines.length * 5 + 4;
-        if (h.note?.content) {
-          doc.setFont(undefined, 'italic');
-          doc.text(`Note: ${h.note.content}`, 20, y);
-          y += 6;
+      doc.setFont(undefined, 'normal');
+      if (view === 'sequence') {
+        // Sequence: Category (bold) + "quote", p.N then optional Note line.
+        for (const h of filteredHighlights) {
+          const colorDisplay =
+            h.color_display_name ??
+            getColorDisplayName(h.color, document?.color_labels, lensColors);
+          const quote = normalizePdfText(h.highlighted_text || '');
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+          const maxWidth = 170;
+          const categoryLabel = `${colorDisplay}: `;
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          const catWidth = doc.getTextWidth(categoryLabel);
+          doc.text(categoryLabel, 20, y);
+          const rest = `"${quote}", p.${h.page_number}`;
           doc.setFont(undefined, 'normal');
+          const restLines = doc.splitTextToSize(rest, maxWidth - catWidth);
+          restLines.forEach((line, idx) => {
+            const lineY = y + idx * 5;
+            const x = 20 + (idx === 0 ? catWidth : 0);
+            doc.text(line, x, lineY);
+          });
+          y += restLines.length * 5 + 2;
+          if (h.note?.content) {
+            doc.setFontSize(10);
+            const noteLines = doc.splitTextToSize(
+              `Note: ${normalizePdfText(h.note.content)}`,
+              166
+            );
+            doc.text(noteLines, 24, y);
+            y += noteLines.length * 5 + 4;
+          } else {
+            y += 4;
+          }
         }
-        y += 8;
+      } else if (view === 'topic') {
+        // Topic: category header, bullets per quote, sub-bullets for notes.
+        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
+          const name =
+            items[0]?.color_display_name ??
+            getColorDisplayName(topicKey, document?.color_labels, lensColors);
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.setFontSize(13);
+          doc.setFont(undefined, 'bold');
+          doc.text(name, 20, y);
+          y += 8;
+          doc.setFont(undefined, 'normal');
+          for (const h of items) {
+            const quote = normalizePdfText(h.highlighted_text || '');
+            if (y > 270) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.setFontSize(11);
+            const bulletLine = `• "${quote}", p.${h.page_number}`;
+            const bLines = doc.splitTextToSize(bulletLine, 170);
+            doc.text(bLines, 20, y);
+            y += bLines.length * 5 + 2;
+            if (h.note?.content) {
+              doc.setFontSize(10);
+              const noteLines = doc.splitTextToSize(
+                `- ${normalizePdfText(h.note.content)}`,
+                166
+              );
+              doc.text(noteLines, 24, y);
+              y += noteLines.length * 5 + 4;
+            } else {
+              y += 4;
+            }
+          }
+          y += 4;
+        }
+      } else if (view === 'page') {
+        // Page: page header, bullets starting with Category: "quote", p.N, with notes as sub-bullets.
+        for (const { page, items } of groupedByPage) {
+          if (y > 270) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.setFontSize(13);
+          doc.setFont(undefined, 'bold');
+          doc.text(`Page ${page}`, 20, y);
+          y += 8;
+          doc.setFont(undefined, 'normal');
+          for (const h of items) {
+            const colorDisplay =
+              h.color_display_name ??
+              getColorDisplayName(h.color, document?.color_labels, lensColors);
+            const quote = normalizePdfText(h.highlighted_text || '');
+            if (y > 270) {
+              doc.addPage();
+              y = 20;
+            }
+            const maxWidth = 170;
+            const prefix = `• ${colorDisplay}: `;
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            const prefixWidth = doc.getTextWidth(prefix);
+            doc.text(prefix, 20, y);
+            const rest = `"${quote}", p.${h.page_number}`;
+            doc.setFont(undefined, 'normal');
+            const restLines = doc.splitTextToSize(rest, maxWidth - prefixWidth);
+            restLines.forEach((line, idx) => {
+              const lineY = y + idx * 5;
+              const x = 20 + (idx === 0 ? prefixWidth : 0);
+              doc.text(line, x, lineY);
+            });
+            y += restLines.length * 5 + 2;
+            if (h.note?.content) {
+              doc.setFontSize(10);
+              const noteLines = doc.splitTextToSize(
+                `- ${normalizePdfText(h.note.content)}`,
+                166
+              );
+              doc.text(noteLines, 24, y);
+              y += noteLines.length * 5 + 4;
+            } else {
+              y += 4;
+            }
+          }
+          y += 4;
+        }
       }
       const blob = doc.output('blob');
       saveAs(blob, `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.pdf`);
@@ -616,7 +724,7 @@ export default function SummaryPage() {
     } catch (err) {
       console.error('Export pdf failed', err);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
+  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
 
   const handleStartEditNote = (h) => {
     setEditingNoteId(h.id);
