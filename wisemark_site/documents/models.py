@@ -127,6 +127,13 @@ class Document(models.Model):
         blank=True,
         help_text='Which colour preset this document uses. Null falls back to first system preset.',
     )
+    public_share_token = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text='Opaque token for public, read-only sharing of this document and its notes.',
+    )
 
     class Meta:
         ordering = ['-updated_at']

@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import secrets
 
 from django.db.models import Count
 
@@ -9,7 +10,7 @@ from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation, HighlightPreset, PresetColor
@@ -367,6 +368,17 @@ class DocumentViewSet(viewsets.ModelViewSet):
             doc.save(update_fields=['pdf_file', 'storage_location', 's3_key', 'file_size'])
         return Response(status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='share')
+    def share(self, request, pk=None):
+        """Generate (or return existing) public read-only share link for this document's summary."""
+        doc = self.get_object()
+        if not doc.public_share_token:
+            doc.public_share_token = secrets.token_urlsafe(32)
+            doc.save(update_fields=['public_share_token'])
+        share_path = f'/share/{doc.public_share_token}/summary'
+        share_url = request.build_absolute_uri(share_path)
+        return Response({'share_url': share_url}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get', 'post'], url_path='highlights')
     def highlights(self, request, pk=None):
         doc = self.get_object()
@@ -495,3 +507,24 @@ class LibraryView(APIView):
             'projects': projects,
             'total_highlights': len(serializer.data),
         })
+
+
+class PublicDocumentSummaryView(APIView):
+    """Public, read-only view of a shared document and its highlights, addressed by opaque token."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
+        if not doc:
+            return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DocumentSerializer(doc, context={'request': request})
+        highlights = doc.highlights.select_related('note').all()
+        highlights_data = HighlightSerializer(highlights, many=True).data
+        return Response(
+            {
+                'document': serializer.data,
+                'highlights': highlights_data,
+            },
+            status=status.HTTP_200_OK,
+        )

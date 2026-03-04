@@ -73,6 +73,8 @@ export const documentsAPI = {
   delete: (id) => api.delete(`/documents/${id}/`),
   /** Permanently remove a removed PDF and all its highlights/notes. Only for docs with deleted_at set. */
   remove: (id) => api.post(`/documents/${id}/remove/`),
+  /** Generate (or return existing) public share link for a document's summary. */
+  sharePublic: (id) => api.post(`/documents/${id}/share/`),
   highlights: (id) => api.get(`/documents/${id}/highlights/`),
   createHighlight: (documentId, data) =>
     api.post(`/documents/${documentId}/highlights/`, data),
@@ -80,4 +82,8 @@ export const documentsAPI = {
     api.patch(`/documents/${documentId}/highlights/${highlightId}/`, data),
   deleteHighlight: (documentId, highlightId) =>
     api.delete(`/documents/${documentId}/highlights/${highlightId}/`),
+};
+
+export const publicDocumentsAPI = {
+  getSummary: (token) => api.get(`/public/documents/${token}/summary/`),
 };

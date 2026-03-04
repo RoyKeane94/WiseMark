@@ -13,6 +13,7 @@ import LibraryPage from './pages/LibraryPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ErrorPage from './pages/ErrorPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import PublicSummaryPage from './pages/PublicSummaryPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +123,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/share/:token/summary" element={<PublicSummaryPage />} />
           <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </ErrorBoundary>

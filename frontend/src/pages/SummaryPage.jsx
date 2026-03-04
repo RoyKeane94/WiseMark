@@ -24,6 +24,7 @@ import {
   Pencil,
   Check,
   X,
+  Share2,
 } from 'lucide-react';
 
 function getHex(colorKey, lensColors) {
@@ -169,6 +170,10 @@ export default function SummaryPage() {
   const [deletingAll, setDeletingAll] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const {
     data: document,
@@ -358,6 +363,65 @@ export default function SummaryPage() {
       setDeletingAll(false);
     }
   }, [id, document?.project, queryClient, navigate]);
+
+  const handleSharePublicWithModal = useCallback(async () => {
+    if (!id || shareLoading) return;
+    setShareLoading(true);
+    setShareCopied(false);
+    try {
+      const { data } = await documentsAPI.sharePublic(id);
+      const url = data?.share_url;
+      if (!url) {
+        window.alert('Public summary link was generated, but URL was missing from the response.');
+        return;
+      }
+      setShareUrl(url);
+      setShareModalOpen(true);
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          setShareCopied(true);
+        } catch (err) {
+          console.error('Failed to copy public summary link', err);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to generate public summary link', err);
+      const msg =
+        err?.response?.data?.detail ??
+        err.message ??
+        'Failed to generate public summary link.';
+      window.alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setShareLoading(false);
+    }
+  }, [id, shareLoading]);
+
+  const handleSharePublic = useCallback(async () => {
+    if (!id || shareLoading) return;
+    setShareLoading(true);
+    try {
+      const { data } = await documentsAPI.sharePublic(id);
+      const shareUrl = data?.share_url;
+      if (shareUrl && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Public summary link copied to your clipboard.');
+      } else if (shareUrl) {
+        alert(`Public summary link:\\n${shareUrl}`);
+      } else {
+        alert('Public summary link generated, but URL was missing from the response.');
+      }
+    } catch (err) {
+      console.error('Failed to generate public summary link', err);
+      const msg =
+        err?.response?.data?.detail ??
+        err.message ??
+        'Failed to generate public summary link.';
+      alert(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setShareLoading(false);
+    }
+  }, [id, shareLoading]);
 
   const handleExportJSON = useCallback(() => {
     const payload = {
@@ -881,7 +945,18 @@ export default function SummaryPage() {
             />
           </div>
 
-          <div className="relative shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleSharePublicWithModal}
+              disabled={shareLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} disabled:opacity-60`}
+              title="Generate public summary link"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+          <div className="relative">
             <button
               type="button"
               onClick={() => setShowExport((v) => !v)}
@@ -924,6 +999,7 @@ export default function SummaryPage() {
                 </div>
               </>
             )}
+          </div>
           </div>
         </div>
 
@@ -1122,6 +1198,69 @@ export default function SummaryPage() {
             </div>
           )}
         </div>
+
+        {/* Share modal */}
+        {shareModalOpen && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+            <div className={`w-full max-w-lg mx-4 rounded-xl border ${border.default} ${bg.surface} shadow-xl`}>
+              <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className={`text-sm font-semibold ${text.heading}`}>Public summary link</h2>
+                  <p className={`mt-1 text-xs ${text.muted}`}>
+                    Anyone with this link can view this document&apos;s summary and export it, but not edit it.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(false)}
+                  className={btnIcon}
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <label className={`block text-xs font-medium ${text.secondary}`}>Link</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    className={`flex-1 text-xs px-3 py-2 rounded-lg border ${border.default} ${bg.surface} ${text.body} font-mono`}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!shareUrl) return;
+                      try {
+                        await navigator.clipboard?.writeText(shareUrl);
+                        setShareCopied(true);
+                      } catch (err) {
+                        console.error('Failed to copy public summary link', err);
+                      }
+                    }}
+                    className="text-xs font-medium px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {shareCopied ? 'Copied' : 'Copy link'}
+                  </button>
+                </div>
+                <p className={`text-[11px] ${text.muted}`}>
+                  You can safely share this URL with anyone you want to give read-only access.
+                </p>
+              </div>
+              <div className="px-5 py-3 border-t border-slate-200 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(false)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Single delete modal */}
