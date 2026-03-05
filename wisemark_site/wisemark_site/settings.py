@@ -43,6 +43,10 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+# Optional: canonical public URL for share links (e.g. https://www.wisemarkhq.com).
+# When set, generated share links use this base so they work when opened from any browser/device.
+SITE_URL = (os.environ.get('SITE_URL') or '').strip().rstrip('/') or None
+
 # CSRF: allow same-origin requests from these origins (Django 4+ checks Origin header)
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in

@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 
 export default function PublicSummaryPage() {
-  const { token } = useParams();
+  const { token: tokenParam } = useParams();
+  const token = tokenParam ? String(tokenParam).trim() : '';
 
   const [view, setView] = useState('sequence');
   const [search, setSearch] = useState('');

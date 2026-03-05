@@ -18,7 +18,8 @@ import {
 import { pageWrapper, btnIcon, text, bg, border, dividerV, btnPrimary } from '../lib/theme';
 
 export default function PublicViewerPage() {
-  const { token } = useParams();
+  const { token: tokenParam } = useParams();
+  const token = tokenParam ? String(tokenParam).trim() : '';
   const [pdfData, setPdfData] = useState(null);
   const [loadingPdf, setLoadingPdf] = useState(true);
   const [pdfError, setPdfError] = useState(null);

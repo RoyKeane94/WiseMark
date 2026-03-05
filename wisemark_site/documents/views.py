@@ -371,12 +371,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='share')
     def share(self, request, pk=None):
         """Generate (or return existing) public read-only share link for this document's summary."""
+        from django.conf import settings
         doc = self.get_object()
         if not doc.public_share_token:
             doc.public_share_token = secrets.token_urlsafe(32)
             doc.save(update_fields=['public_share_token'])
         share_path = f'/share/{doc.public_share_token}/summary'
-        share_url = request.build_absolute_uri(share_path)
+        if getattr(settings, 'SITE_URL', None):
+            share_url = settings.SITE_URL + share_path
+        else:
+            share_url = request.build_absolute_uri(share_path)
         return Response({'share_url': share_url}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get', 'post'], url_path='highlights')
@@ -515,6 +519,7 @@ class PublicDocumentSummaryView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
+        token = (token or '').strip()
         doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
         if not doc:
             return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -536,6 +541,7 @@ class PublicDocumentPdfView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
+        token = (token or '').strip()
         doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
         if not doc:
             return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
