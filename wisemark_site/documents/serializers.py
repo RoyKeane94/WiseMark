@@ -174,11 +174,16 @@ class DocumentSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         if 'request' in self.context:
             user = self.context['request'].user
-            self.fields['project'].queryset = Project.objects.filter(user=user)
-            # User can assign system presets (user=None) or their own presets
-            self.fields['highlight_preset'].queryset = HighlightPreset.objects.filter(
-                Q(user__isnull=True) | Q(user=user)
-            )
+            if user.is_authenticated:
+                self.fields['project'].queryset = Project.objects.filter(user=user)
+                # User can assign system presets (user=None) or their own presets
+                self.fields['highlight_preset'].queryset = HighlightPreset.objects.filter(
+                    Q(user__isnull=True) | Q(user=user)
+                )
+            else:
+                # Anonymous (e.g. public share): read-only, no valid choices for write
+                self.fields['project'].queryset = Project.objects.none()
+                self.fields['highlight_preset'].queryset = HighlightPreset.objects.none()
         if self.instance:
             self.fields['project'].read_only = True
 
