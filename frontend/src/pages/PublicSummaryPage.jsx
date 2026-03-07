@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { publicDocumentsAPI } from '../lib/api';
@@ -29,6 +29,16 @@ export default function PublicSummaryPage() {
   const [activeFilters, setActiveFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [showExport, setShowExport] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobilePdfMessage, setShowMobilePdfMessage] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-summary', token],
@@ -627,13 +637,24 @@ export default function PublicSummaryPage() {
           </div>
 
           <div className="relative shrink-0 flex items-center gap-2">
-            <Link
-              to={`/share/${token}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} no-underline`}
-            >
-              <BookOpen className="w-4 h-4" />
-              View PDF with highlights
-            </Link>
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => setShowMobilePdfMessage(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body}`}
+              >
+                <BookOpen className="w-4 h-4" />
+                View PDF with highlights
+              </button>
+            ) : (
+              <Link
+                to={`/share/${token}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} no-underline`}
+              >
+                <BookOpen className="w-4 h-4" />
+                View PDF with highlights
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setShowExport((v) => !v)}
@@ -895,6 +916,35 @@ export default function PublicSummaryPage() {
           )}
         </div>
       </main>
+
+      {showMobilePdfMessage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowMobilePdfMessage(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mobile-pdf-title"
+        >
+          <div
+            className={`max-w-sm w-full rounded-xl border ${border.default} ${bg.surface} shadow-xl p-5`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="mobile-pdf-title" className={`text-base font-semibold ${text.heading} mb-2`}>
+              This feature is not available on mobile
+            </h2>
+            <p className={`text-sm ${text.secondary} mb-4`}>
+              View the PDF with highlights on a desktop or tablet browser.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowMobilePdfMessage(false)}
+              className={`w-full py-2 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body}`}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -29,6 +29,15 @@ export default function PublicViewerPage() {
   const [activeHighlightId, setActiveHighlightId] = useState(null);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-viewer', token],
@@ -184,6 +193,25 @@ export default function PublicViewerPage() {
           className="flex items-center gap-2 text-sm text-slate-600 hover:underline"
         >
           <ArrowLeft className="w-4 h-4" /> View summary instead
+        </Link>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className={`${pageWrapper} flex flex-col items-center justify-center min-h-[50vh] p-4`}>
+        <h2 className={`text-lg font-semibold ${text.heading} mb-2 text-center`}>
+          This feature is not available on mobile
+        </h2>
+        <p className={`text-sm ${text.secondary} mb-4 text-center`}>
+          View the PDF with highlights on a desktop or tablet browser.
+        </p>
+        <Link
+          to={`/share/${token}/summary`}
+          className="flex items-center gap-2 text-sm text-slate-600 hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to summary
         </Link>
       </div>
     );
