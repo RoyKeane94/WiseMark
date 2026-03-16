@@ -10,7 +10,8 @@ const PALETTE = [
 ];
 
 const MAX_COLORS = 5;
-const MAX_CUSTOM_LENSES = 3;
+const MAX_CUSTOM_LENSES = 5;
+const MAX_OVERALL_LENSES = 5;
 
 export default function HighlightLensesSection({ noCollapse = false }) {
   const queryClient = useQueryClient();
@@ -262,7 +263,7 @@ export default function HighlightLensesSection({ noCollapse = false }) {
         ))}
           </ul>
 
-          {customLenses.length < MAX_CUSTOM_LENSES && (
+          {customLenses.length < MAX_CUSTOM_LENSES && lenses.length < MAX_OVERALL_LENSES && (
         <button
           type="button"
           onClick={() => setCreateStep(1)}

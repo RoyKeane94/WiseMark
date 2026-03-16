@@ -41,7 +41,8 @@ def _preset_queryset(request):
     ).prefetch_related('colors').order_by('name')
 
 
-MAX_CUSTOM_LENSES = 3
+MAX_CUSTOM_LENSES = 5
+MAX_OVERALL_LENSES = 5
 MAX_COLORS_PER_LENS = 5
 
 
@@ -60,9 +61,13 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         custom_count = HighlightPreset.objects.filter(user=user).count()
+        system_count = HighlightPreset.objects.filter(user__isnull=True).count()
         if custom_count >= MAX_CUSTOM_LENSES:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'detail': f'You can create up to {MAX_CUSTOM_LENSES} custom lenses.'})
+        if custom_count + system_count >= MAX_OVERALL_LENSES:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': f'You can have at most {MAX_OVERALL_LENSES} lenses in total (including system lenses).'})
         serializer.save(user=user)
 
     def destroy(self, request, *args, **kwargs):
