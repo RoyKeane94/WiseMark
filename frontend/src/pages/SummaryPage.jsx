@@ -446,181 +446,151 @@ export default function SummaryPage() {
     try {
       const { Document, Packer, Paragraph, TextRun } = await import('docx');
       const { saveAs } = await import('file-saver');
+
+      const toTitleCase = (s) =>
+        (s || '').replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+
+      const stripOuterQuotes = (s) => {
+        if (!s) return '';
+        let t = String(s).trim();
+        if (t.startsWith('"') && t.endsWith('"') && t.length >= 2) t = t.slice(1, -1);
+        return t;
+      };
+
+      const mergeContinuousHighlights = (items) => {
+        const merged = [];
+        for (const h of items) {
+          const baseText = stripOuterQuotes(h.highlighted_text || '');
+          const copy = { ...h, highlighted_text: baseText };
+          if (!merged.length) {
+            merged.push(copy);
+            continue;
+          }
+          const prev = merged[merged.length - 1];
+          const prevText = (prev.highlighted_text || '').trim();
+          const currText = (baseText || '').trim();
+          const prevEndsSentence = /[.!?]"?\s*$/.test(prevText);
+          const currStartsLower = /^[a-z]/.test(currText);
+          const hasPrevNote = !!(prev.note?.content);
+          const hasCurrNote = !!(copy.note?.content);
+          if (!prevEndsSentence && currStartsLower && !hasPrevNote && !hasCurrNote) {
+            prev.highlighted_text = `${prevText} ${currText}`.trim();
+            prev.page_number = copy.page_number;
+          } else {
+            merged.push(copy);
+          }
+        }
+        return merged;
+      };
+
+      const makeHeading = (text) =>
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: toTitleCase(text),
+              bold: true,
+              size: 24,
+              font: 'Arial',
+            }),
+          ],
+          spacing: { before: 240, after: 120 },
+          border: {
+            bottom: { color: 'CCCCCC', size: 4, space: 1 },
+          },
+        });
+
+      const makeHighlightParagraph = (h, prefixText) => {
+        const raw = (h.highlighted_text || '').trim();
+        const parts = raw.split(/\r?\n/);
+        const runs = [];
+        if (prefixText) {
+          runs.push(
+            new TextRun({ text: prefixText, bold: true, size: 20, font: 'Arial' })
+          );
+        }
+        parts.forEach((line, idx) => {
+          if (idx > 0) runs.push(new TextRun({ text: '\n', size: 20, font: 'Arial' }));
+          runs.push(new TextRun({ text: line, size: 20, font: 'Arial' }));
+        });
+        runs.push(
+          new TextRun({
+            text: ` (p.${h.page_number})`,
+            italics: true,
+            size: 20,
+            font: 'Arial',
+            color: '808080',
+          })
+        );
+        return new Paragraph({
+          bullet: { level: 0 },
+          children: runs,
+          spacing: { after: h.note?.content ? 0 : 120 },
+        });
+      };
+
+      const makeCommentParagraph = (noteContent) => {
+        const parts = (noteContent || '').split(/\r?\n/);
+        const runs = [];
+        parts.forEach((line, idx) => {
+          if (idx > 0) runs.push(new TextRun({ text: '\n', size: 20, font: 'Arial', italics: true }));
+          runs.push(new TextRun({ text: line, size: 20, font: 'Arial', italics: true }));
+        });
+        return new Paragraph({
+          bullet: { level: 1 },
+          children: runs,
+          spacing: { before: 0, after: 120 },
+        });
+      };
+
       const children = [
         new Paragraph({
           children: [
             new TextRun({
               text: document?.filename ?? 'Document Summary',
               bold: true,
-              size: 28,
+              size: 24,
+              font: 'Arial',
             }),
           ],
           spacing: { after: 200 },
         }),
       ];
+
       if (view === 'sequence') {
-        // 4. Sequence view: Category name bold at start, then quote in quotes, page in italics.
-        for (const h of filteredHighlights) {
+        const merged = mergeContinuousHighlights(filteredHighlights);
+        for (const h of merged) {
           const colorDisplay =
             h.color_display_name ??
             getColorDisplayName(h.color, document?.color_labels, lensColors);
-          const quote = h.highlighted_text || '';
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `${colorDisplay}: `,
-                  bold: true,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `"${quote}"`,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `, `,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `p.${h.page_number}`,
-                  italics: true,
-                  size: 20,
-                }),
-              ],
-              spacing: { before: 120, after: h.note?.content ? 20 : 60 },
-            })
-          );
-          if (h.note?.content) {
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: h.note.content,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-                spacing: { after: 80 },
-              })
-            );
-          }
+          children.push(makeHighlightParagraph(h, `${colorDisplay}: `));
+          if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
         }
       } else if (view === 'topic') {
-        // 5. Topic view: category header, then bullet points for each quote, notes as sub-bullets.
         for (const [topicKey, items] of Object.entries(groupedByTopic)) {
           const name =
             items[0]?.color_display_name ??
             getColorDisplayName(topicKey, document?.color_labels, lensColors);
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: name,
-                  bold: true,
-                  size: 24,
-                }),
-              ],
-              spacing: { before: 160, after: 40 },
-            })
-          );
-          for (const h of items) {
-            const quote = h.highlighted_text || '';
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({
-                    text: `"${quote}"`,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `, `,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `p.${h.page_number}`,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-              })
-            );
-            if (h.note?.content) {
-              children.push(
-                new Paragraph({
-                  bullet: { level: 1 },
-                  children: [
-                    new TextRun({
-                      text: h.note.content,
-                      size: 20,
-                    }),
-                  ],
-                })
-              );
-            }
+          children.push(makeHeading(name));
+          const merged = mergeContinuousHighlights(items);
+          for (const h of merged) {
+            children.push(makeHighlightParagraph(h, ''));
+            if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
           }
         }
       } else if (view === 'page') {
-        // 6. Page view: page header, bullets with Category (bold), quote, page, notes as sub-bullets.
         for (const { page, items } of groupedByPage) {
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Page ${page}`,
-                  bold: true,
-                  size: 24,
-                }),
-              ],
-              spacing: { before: 160, after: 40 },
-            })
-          );
-          for (const h of items) {
+          children.push(makeHeading(`Page ${page}`));
+          const merged = mergeContinuousHighlights(items);
+          for (const h of merged) {
             const colorDisplay =
               h.color_display_name ??
               getColorDisplayName(h.color, document?.color_labels, lensColors);
-            const quote = h.highlighted_text || '';
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({
-                    text: `${colorDisplay}: `,
-                    bold: true,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `"${quote}"`,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `, `,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `p.${h.page_number}`,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-              })
-            );
-            if (h.note?.content) {
-              children.push(
-                new Paragraph({
-                  bullet: { level: 1 },
-                  children: [
-                    new TextRun({
-                      text: h.note.content,
-                      size: 20,
-                    }),
-                  ],
-                })
-              );
-            }
+            children.push(makeHighlightParagraph(h, `${colorDisplay}: `));
+            if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
           }
         }
       }
+
       const doc = new Document({
         sections: [{ children }],
       });
