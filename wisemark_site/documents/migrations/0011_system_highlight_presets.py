@@ -13,11 +13,11 @@ def create_system_presets(apps, schema_editor):
         defaults={'name': 'Private Equity', 'user_id': None},
     )
     pe_colors = [
-        ('yellow', 'Key Metrics', '#FBBF24', 0),
-        ('green', 'Competitive Advantages', '#34D399', 1),
-        ('blue', 'Management Questions', '#60A5FA', 2),
+        ('yellow', 'Business & Management', '#FBBF24', 0),
+        ('green', 'Financials', '#34D399', 1),
+        ('blue', 'Market', '#60A5FA', 2),
         ('pink', 'Investment Risks', '#F472B6', 3),
-        ('orange', 'Commercial DD', '#FB923C', 4),
+        ('orange', 'Investment Highlights', '#FB923C', 4),
     ]
     for key, display_name, hex_val, sort_order in pe_colors:
         PresetColor.objects.get_or_create(
@@ -32,11 +32,11 @@ def create_system_presets(apps, schema_editor):
         defaults={'name': 'Public Markets', 'user_id': None},
     )
     pm_colors = [
-        ('yellow', 'Key Metrics', '#FBBF24', 0),
-        ('green', 'Thesis & Quality', '#34D399', 1),
-        ('blue', 'Risks & Concerns', '#60A5FA', 2),
-        ('pink', 'Valuation', '#F472B6', 3),
-        ('orange', 'Catalysts', '#FB923C', 4),
+        ('yellow', 'Business & Management', '#FBBF24', 0),
+        ('green', 'Financials', '#34D399', 1),
+        ('blue', 'Market', '#60A5FA', 2),
+        ('pink', 'Investment Risks', '#F472B6', 3),
+        ('orange', 'Investment Highlights', '#FB923C', 4),
     ]
     for key, display_name, hex_val, sort_order in pm_colors:
         PresetColor.objects.get_or_create(

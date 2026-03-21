@@ -130,7 +130,7 @@ export default function EditLensModal({ lens, documentId, onClose }) {
                           type="text"
                           value={addingName}
                           onChange={(e) => setAddingName(e.target.value)}
-                          placeholder="Label, e.g. Key Metrics"
+                          placeholder="Label, e.g. Business & Management"
                           autoFocus
                           onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmAdd(); }}
                           className={`flex-1 min-w-0 rounded-lg border ${border.default} px-2.5 py-1.5 text-sm ${text.body} placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-slate-200`}

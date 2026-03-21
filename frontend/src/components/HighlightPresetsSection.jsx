@@ -351,7 +351,7 @@ export default function HighlightLensesSection({ noCollapse = false }) {
                           type="text"
                           value={pickingName}
                           onChange={(e) => setPickingName(e.target.value)}
-                          placeholder="Label, e.g. Key Metrics"
+                          placeholder="Label, e.g. Business & Management"
                           autoFocus
                           onKeyDown={(e) => { if (e.key === 'Enter') handleAddColorToNew(); }}
                           className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-slate-300"
