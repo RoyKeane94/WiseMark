@@ -681,7 +681,8 @@ export default function SummaryPage() {
       y += 8;
       doc.setTextColor(0);
 
-      const pdfPageBreak = () => { if (y > 270) { doc.addPage(); y = 20; } };
+      const PAGE_BOTTOM = 280;
+      const pdfPageBreak = () => { if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; } };
 
       const pdfQuoteBlock = (quoteStr, pageNum, startX) => {
         doc.setFontSize(11);
@@ -690,10 +691,13 @@ export default function SummaryPage() {
         const qText = `"${quoteStr}"`;
         const qLines = doc.splitTextToSize(qText, 170 - (startX - 20));
         qLines.forEach((line, idx) => {
-          doc.text(line, idx === 0 ? startX : 20, y + idx * 5);
+          if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; }
+          const x = idx === 0 ? startX : 20;
+          doc.text(line, x, y);
+          y += 5;
         });
-        y += qLines.length * 5;
         const lastLineX = qLines.length === 1 ? startX : 20;
+        doc.setFont(undefined, 'normal');
         const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
         doc.setFont(undefined, 'italic');
         doc.setTextColor(128);
@@ -708,8 +712,12 @@ export default function SummaryPage() {
         doc.setFont(undefined, 'italic');
         doc.setTextColor(0);
         const noteLines = doc.splitTextToSize(normalizePdfText(noteContent), 166);
-        doc.text(noteLines, 24, y);
-        y += noteLines.length * 5 + 4;
+        noteLines.forEach((line) => {
+          if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; }
+          doc.text(line, 24, y);
+          y += 5;
+        });
+        y += 4;
         doc.setFont(undefined, 'normal');
       };
 
