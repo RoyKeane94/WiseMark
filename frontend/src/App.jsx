@@ -4,7 +4,6 @@ import useAuthStore from './stores/authStore';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
-import LandingPage from './pages/LandingPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ViewerPage from './pages/ViewerPage';
@@ -13,8 +12,8 @@ import SettingsPage from './pages/SettingsPage';
 import ExportDataPage from './pages/ExportDataPage';
 import LibraryPage from './pages/LibraryPage';
 import NotFoundPage from './pages/NotFoundPage';
-import ErrorPage from './pages/ErrorPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedAppShell from './components/ProtectedAppShell';
 import PublicSummaryPage from './pages/PublicSummaryPage';
 import PublicViewerPage from './pages/PublicViewerPage';
 
@@ -31,28 +30,10 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ children }) {
-  const token = useAuthStore((s) => s.token);
-  if (!token) return <Navigate to="/login" replace />;
-  return children;
-}
-
 function PublicRoute({ children }) {
   const token = useAuthStore((s) => s.token);
   if (token) return <Navigate to="/app" replace />;
   return children;
-}
-
-function HomeRoute() {
-  const token = useAuthStore((s) => s.token);
-  if (token) {
-    return (
-      <ProtectedRoute>
-        <ProjectsPage />
-      </ProtectedRoute>
-    );
-  }
-  return <LandingPage />;
 }
 
 export default function App() {
@@ -86,62 +67,15 @@ export default function App() {
             }
           />
           <Route path="/" element={<Navigate to="/app" replace />} />
-          <Route
-            path="/app"
-            element={
-              <ProtectedRoute>
-                <ProjectsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/app/library"
-            element={
-              <ProtectedRoute>
-                <LibraryPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/app/settings"
-            element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/app/goodbye"
-            element={
-              <ProtectedRoute>
-                <ExportDataPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/project/:projectId"
-            element={
-              <ProtectedRoute>
-                <ProjectDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/document/:id"
-            element={
-              <ProtectedRoute>
-                <ViewerPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/document/:id/summary"
-            element={
-              <ProtectedRoute>
-                <SummaryPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route element={<ProtectedAppShell />}>
+            <Route path="/app" element={<ProjectsPage />} />
+            <Route path="/app/library" element={<LibraryPage />} />
+            <Route path="/app/settings" element={<SettingsPage />} />
+            <Route path="/app/goodbye" element={<ExportDataPage />} />
+            <Route path="/project/:projectId" element={<ProjectDetailPage />} />
+            <Route path="/document/:id" element={<ViewerPage />} />
+            <Route path="/document/:id/summary" element={<SummaryPage />} />
+          </Route>
           <Route path="/share/:token/summary" element={<PublicSummaryPage />} />
           <Route path="/share/:token" element={<PublicViewerPage />} />
           <Route path="*" element={<NotFoundPage />} />

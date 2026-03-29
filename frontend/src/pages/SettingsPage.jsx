@@ -357,9 +357,18 @@ export default function SettingsPage() {
           )}
         </section>
 
-        <div className="mt-6">
-          <HighlightLensesSection />
-        </div>
+        {user?.billing?.plan_allows_app_use === false ? (
+          <div className="mt-6 p-6 bg-white border border-slate-200 rounded-xl">
+            <h2 className="text-base font-semibold text-slate-800 mb-1">Highlight lenses</h2>
+            <p className="text-sm text-slate-600 m-0">
+              Available again after you upgrade. Your trial has ended.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6">
+            <HighlightLensesSection />
+          </div>
+        )}
 
         <section className="mt-8 p-6 bg-white border border-slate-200 rounded-xl">
           <h2 className="text-base font-semibold text-slate-800 mb-1">Delete account</h2>

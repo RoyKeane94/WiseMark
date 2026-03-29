@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Account(models.Model):
@@ -38,6 +39,25 @@ class Account(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+    def plan_allows_app_use(self):
+        """True if user may use projects, documents, lenses, and the viewer."""
+        now = timezone.now()
+        if self.account_type == self.PAID:
+            return True
+        if self.account_type == self.TRIAL:
+            if self.trial_expires_at is None:
+                return True
+            return self.trial_expires_at > now
+        return False
+
+    def is_trial_expired(self):
+        """True only for trial accounts with a set end time that has passed."""
+        if self.account_type != self.TRIAL:
+            return False
+        if self.trial_expires_at is None:
+            return False
+        return self.trial_expires_at <= timezone.now()
 
 
 class SignOnCode(models.Model):

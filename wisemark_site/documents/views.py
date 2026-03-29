@@ -11,6 +11,8 @@ from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
+
+from accounts.permissions import HasActivePlanAccess
 from rest_framework.response import Response
 
 from .models import Project, Document, DocumentColor, Highlight, Note, Color, StorageLocation, HighlightPreset, PresetColor
@@ -48,7 +50,7 @@ MAX_COLORS_PER_LENS = 5
 
 class HighlightPresetViewSet(viewsets.ModelViewSet):
     """List system + user lenses; create/update/delete user lenses only."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasActivePlanAccess]
 
     def get_queryset(self):
         return _preset_queryset(self.request)
@@ -138,7 +140,7 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
 class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasActivePlanAccess]
 
     def get_queryset(self):
         return (
@@ -155,7 +157,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 class DocumentViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasActivePlanAccess]
 
     def get_queryset(self):
         qs = (

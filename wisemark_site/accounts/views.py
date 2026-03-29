@@ -94,6 +94,8 @@ def _billing_payload(account):
             'trial_days_remaining': None,
             'has_recurring_subscription': False,
             'subscription_cancel_at_period_end': False,
+            'plan_allows_app_use': False,
+            'trial_expired': False,
         }
     trial_days = None
     if account.account_type == Account.TRIAL and account.trial_expires_at:
@@ -106,6 +108,8 @@ def _billing_payload(account):
         'trial_days_remaining': trial_days,
         'has_recurring_subscription': has_sub,
         'subscription_cancel_at_period_end': account.subscription_cancel_at_period_end,
+        'plan_allows_app_use': account.plan_allows_app_use(),
+        'trial_expired': account.is_trial_expired(),
     }
 
 
