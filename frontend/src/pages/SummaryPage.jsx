@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { documentsAPI, lensesAPI } from '../lib/api';
+import { documentsAPI, lensesAPI, authAPI } from '../lib/api';
 import {
   HIGHLIGHT_COLORS,
   HIGHLIGHT_COLOR_KEYS,
@@ -203,6 +203,11 @@ export default function SummaryPage() {
       const { data } = await lensesAPI.list();
       return data;
     },
+  });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => (await authAPI.me()).data,
   });
 
   const currentLens = useMemo(() => {
@@ -444,149 +449,166 @@ export default function SummaryPage() {
 
   const handleExportDocx = useCallback(async () => {
     try {
-      const { Document, Packer, Paragraph, TextRun } = await import('docx');
+      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, TabStopPosition, TabStopType } = await import('docx');
       const { saveAs } = await import('file-saver');
 
-      const toTitleCase = (s) =>
-        (s || '').replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+      const F = 'Arial';
+      const allHighlights = highlights || [];
+      const docName = document?.filename ?? 'Document Summary';
+      const analystEmail = currentUser?.email || '';
+      const dateStr = new Date().toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
 
-      const stripOuterQuotes = (s) => {
-        if (!s) return '';
-        let t = String(s).trim();
-        if (t.startsWith('"') && t.endsWith('"') && t.length >= 2) t = t.slice(1, -1);
-        return t;
+      const totalComments = allHighlights.filter((h) => h.note?.content).length;
+
+      const quoteText = (raw) => `"${normalizePdfText(raw || '')}"`;
+
+      const textRuns = (text, opts = {}) => {
+        const lines = String(text).split(/\r?\n/);
+        return lines.map((line, idx) =>
+          new TextRun({
+            text: line,
+            ...(idx > 0 ? { break: 1 } : {}),
+            size: 22, font: F,
+            ...opts,
+          })
+        );
       };
 
-      const mergeContinuousHighlights = (items) => {
-        const merged = [];
-        for (const h of items) {
-          const baseText = stripOuterQuotes(h.highlighted_text || '');
-          const copy = { ...h, highlighted_text: baseText };
-          if (!merged.length) {
-            merged.push(copy);
-            continue;
-          }
-          const prev = merged[merged.length - 1];
-          const prevText = (prev.highlighted_text || '').trim();
-          const currText = (baseText || '').trim();
-          const prevEndsSentence = /[.!?]"?\s*$/.test(prevText);
-          const currStartsLower = /^[a-z]/.test(currText);
-          const hasPrevNote = !!(prev.note?.content);
-          const hasCurrNote = !!(copy.note?.content);
-          if (!prevEndsSentence && currStartsLower && !hasPrevNote && !hasCurrNote) {
-            prev.highlighted_text = `${prevText} ${currText}`.trim();
-            prev.page_number = copy.page_number;
-          } else {
-            merged.push(copy);
-          }
-        }
-        return merged;
-      };
+      const pageRef = (pageNum) =>
+        new TextRun({ text: ` (p.${pageNum})`, italics: true, size: 22, font: F, color: '808080' });
 
       const makeHeading = (text) =>
         new Paragraph({
-          children: [
-            new TextRun({
-              text: toTitleCase(text),
-              bold: true,
-              size: 24,
-              font: 'Arial',
-            }),
-          ],
-          spacing: { before: 240, after: 120 },
-          border: {
-            bottom: { color: 'CCCCCC', size: 4, space: 1 },
-          },
+          children: [new TextRun({ text, bold: true, size: 26, font: F })],
+          spacing: { before: 300, after: 100 },
+          border: { bottom: { color: 'CCCCCC', size: 6, space: 4, style: BorderStyle.SINGLE } },
         });
 
-      const makeHighlightParagraph = (h, prefixText) => {
-        const raw = (h.highlighted_text || '').trim();
-        const parts = raw.split(/\r?\n/);
-        const runs = [];
-        if (prefixText) {
-          runs.push(
-            new TextRun({ text: prefixText, bold: true, size: 20, font: 'Arial' })
-          );
-        }
-        parts.forEach((line, idx) => {
-          if (idx > 0) runs.push(new TextRun({ text: '\n', size: 20, font: 'Arial' }));
-          runs.push(new TextRun({ text: line, size: 20, font: 'Arial' }));
-        });
-        runs.push(
-          new TextRun({
-            text: ` (p.${h.page_number})`,
-            italics: true,
-            size: 20,
-            font: 'Arial',
-            color: '808080',
-          })
-        );
-        return new Paragraph({
-          bullet: { level: 0 },
-          children: runs,
-          spacing: { after: h.note?.content ? 0 : 120 },
-        });
-      };
-
-      const makeCommentParagraph = (noteContent) => {
-        const parts = (noteContent || '').split(/\r?\n/);
-        const runs = [];
-        parts.forEach((line, idx) => {
-          if (idx > 0) runs.push(new TextRun({ text: '\n', size: 20, font: 'Arial', italics: true }));
-          runs.push(new TextRun({ text: line, size: 20, font: 'Arial', italics: true }));
-        });
-        return new Paragraph({
+      const makeNote = (noteContent) =>
+        new Paragraph({
           bullet: { level: 1 },
-          children: runs,
-          spacing: { before: 0, after: 120 },
+          children: textRuns(normalizePdfText(noteContent), { italics: true }),
+          spacing: { after: 120 },
         });
-      };
 
+      // --- Cover section ---
       const children = [
         new Paragraph({
-          children: [
-            new TextRun({
-              text: document?.filename ?? 'Document Summary',
-              bold: true,
-              size: 24,
-              font: 'Arial',
-            }),
-          ],
+          children: [new TextRun({ text: docName.replace(/\.pdf$/i, ''), bold: true, size: 36, font: F })],
+          spacing: { after: 40 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: 'Summary', size: 22, font: F, color: '666666' })],
           spacing: { after: 200 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Date reviewed:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: dateStr, size: 20, font: F }),
+            new TextRun({ text: '        ', size: 20, font: F }),
+            new TextRun({ text: 'Analyst:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: analystEmail, size: 20, font: F }),
+          ],
+          spacing: { after: 60 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Total annotations:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: String(allHighlights.length), bold: true, size: 20, font: F }),
+            new TextRun({ text: '        ', size: 20, font: F }),
+            new TextRun({ text: 'Total comments:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: String(totalComments), bold: true, size: 20, font: F }),
+          ],
+          spacing: { after: 120 },
         }),
       ];
 
+      children.push(
+        new Paragraph({
+          children: [],
+          spacing: { after: 80 },
+          border: { bottom: { color: 'CCCCCC', size: 6, space: 8, style: BorderStyle.SINGLE } },
+        })
+      );
+
+      // --- Annotations ---
       if (view === 'sequence') {
-        const merged = mergeContinuousHighlights(filteredHighlights);
-        for (const h of merged) {
+        for (const h of allHighlights) {
           const colorDisplay =
             h.color_display_name ??
             getColorDisplayName(h.color, document?.color_labels, lensColors);
-          children.push(makeHighlightParagraph(h, `${colorDisplay}: `));
-          if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: `${colorDisplay}: `, bold: true, size: 22, font: F }),
+                ...textRuns(quoteText(h.highlighted_text)),
+                pageRef(h.page_number),
+              ],
+              spacing: { before: 120, after: h.note?.content ? 20 : 80 },
+            })
+          );
+          if (h.note?.content) {
+            children.push(
+              new Paragraph({
+                indent: { left: 360 },
+                children: textRuns(normalizePdfText(h.note.content), { italics: true }),
+                spacing: { after: 80 },
+              })
+            );
+          }
         }
       } else if (view === 'topic') {
-        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
+        const groups = {};
+        for (const h of allHighlights) {
+          const key = h.color ?? 'uncategorized';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(h);
+        }
+        for (const [topicKey, items] of Object.entries(groups)) {
           const name =
             items[0]?.color_display_name ??
             getColorDisplayName(topicKey, document?.color_labels, lensColors);
           children.push(makeHeading(name));
-          const merged = mergeContinuousHighlights(items);
-          for (const h of merged) {
-            children.push(makeHighlightParagraph(h, ''));
-            if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
+          for (const h of items) {
+            children.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [...textRuns(quoteText(h.highlighted_text)), pageRef(h.page_number)],
+                spacing: { after: h.note?.content ? 20 : 80 },
+              })
+            );
+            if (h.note?.content) children.push(makeNote(h.note.content));
           }
         }
       } else if (view === 'page') {
-        for (const { page, items } of groupedByPage) {
+        const pageGroups = {};
+        for (const h of allHighlights) {
+          const key = h.page_number ?? 0;
+          if (!pageGroups[key]) pageGroups[key] = [];
+          pageGroups[key].push(h);
+        }
+        const pages = Object.keys(pageGroups).map((n) => parseInt(n, 10)).sort((a, b) => a - b);
+        for (const page of pages) {
+          const items = pageGroups[page];
           children.push(makeHeading(`Page ${page}`));
-          const merged = mergeContinuousHighlights(items);
-          for (const h of merged) {
+          for (const h of items) {
             const colorDisplay =
               h.color_display_name ??
               getColorDisplayName(h.color, document?.color_labels, lensColors);
-            children.push(makeHighlightParagraph(h, `${colorDisplay}: `));
-            if (h.note?.content) children.push(makeCommentParagraph(h.note.content));
+            children.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [
+                  new TextRun({ text: `${colorDisplay}: `, bold: true, size: 22, font: F }),
+                  ...textRuns(quoteText(h.highlighted_text)),
+                  pageRef(h.page_number),
+                ],
+                spacing: { after: h.note?.content ? 20 : 80 },
+              })
+            );
+            if (h.note?.content) children.push(makeNote(h.note.content));
           }
         }
       }
@@ -603,90 +625,140 @@ export default function SummaryPage() {
     } catch (err) {
       console.error('Export docx failed', err);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
+  }, [document?.filename, document?.color_labels, highlights, lensColors, view, currentUser]);
 
   const handleExportPdf = useCallback(async () => {
     try {
       const { jsPDF } = await import('jspdf');
       const { saveAs } = await import('file-saver');
       const doc = new jsPDF();
+      const allH = highlights || [];
+      const analystEmail = currentUser?.email || '';
+      const dateStr = new Date().toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
+
+      const totalComments = allH.filter((h) => h.note?.content).length;
+
       let y = 20;
-      doc.setFontSize(16);
-      doc.text(document?.filename ?? 'Document Summary', 20, y);
-      y += 12;
+      doc.setFontSize(18);
+      doc.setFont(undefined, 'bold');
+      doc.text((document?.filename ?? 'Document Summary').replace(/\.pdf$/i, ''), 20, y);
+      y += 7;
+      doc.setFontSize(11);
       doc.setFont(undefined, 'normal');
+      doc.setTextColor(100);
+      doc.text('Summary', 20, y);
+      y += 10;
+
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text('Date reviewed:', 20, y);
+      doc.setTextColor(0);
+      doc.text(dateStr, 50, y);
+      const analystX = 110;
+      doc.setTextColor(100);
+      doc.text('Analyst:', analystX, y);
+      doc.setTextColor(0);
+      doc.text(analystEmail, analystX + 22, y);
+      y += 6;
+      doc.setTextColor(100);
+      doc.text('Total annotations:', 20, y);
+      doc.setTextColor(0);
+      doc.setFont(undefined, 'bold');
+      doc.text(String(allH.length), 55, y);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100);
+      doc.text('Total comments:', analystX, y);
+      doc.setTextColor(0);
+      doc.setFont(undefined, 'bold');
+      doc.text(String(totalComments), analystX + 38, y);
+      doc.setFont(undefined, 'normal');
+      y += 8;
+
+      doc.setDrawColor(200);
+      doc.line(20, y, 190, y);
+      y += 8;
+      doc.setTextColor(0);
+
+      const pdfPageBreak = () => { if (y > 270) { doc.addPage(); y = 20; } };
+
+      const pdfQuoteBlock = (quoteStr, pageNum, startX) => {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0);
+        const qText = `"${quoteStr}"`;
+        const qLines = doc.splitTextToSize(qText, 170 - (startX - 20));
+        qLines.forEach((line, idx) => {
+          doc.text(line, idx === 0 ? startX : 20, y + idx * 5);
+        });
+        y += qLines.length * 5;
+        const lastLineX = qLines.length === 1 ? startX : 20;
+        const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(128);
+        doc.text(` (p.${pageNum})`, lastLineX + lastLineW, y - 5);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'normal');
+        y += 2;
+      };
+
+      const pdfNote = (noteContent) => {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(0);
+        const noteLines = doc.splitTextToSize(normalizePdfText(noteContent), 166);
+        doc.text(noteLines, 24, y);
+        y += noteLines.length * 5 + 4;
+        doc.setFont(undefined, 'normal');
+      };
+
       if (view === 'sequence') {
-        // Sequence: Category (bold) + "quote", p.N then optional Note line.
-        for (const h of filteredHighlights) {
+        for (const h of allH) {
           const colorDisplay =
             h.color_display_name ??
             getColorDisplayName(h.color, document?.color_labels, lensColors);
           const quote = normalizePdfText(h.highlighted_text || '');
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
-          const maxWidth = 170;
-          const categoryLabel = `${colorDisplay}: `;
+          pdfPageBreak();
           doc.setFontSize(11);
           doc.setFont(undefined, 'bold');
+          const categoryLabel = `${colorDisplay}: `;
           const catWidth = doc.getTextWidth(categoryLabel);
           doc.text(categoryLabel, 20, y);
-          const rest = `"${quote}", p.${h.page_number}`;
-          doc.setFont(undefined, 'normal');
-          const restLines = doc.splitTextToSize(rest, maxWidth - catWidth);
-          restLines.forEach((line, idx) => {
-            const lineY = y + idx * 5;
-            const x = 20 + (idx === 0 ? catWidth : 0);
-            doc.text(line, x, lineY);
-          });
-          y += restLines.length * 5 + 2;
+          pdfQuoteBlock(quote, h.page_number, 20 + catWidth);
           if (h.note?.content) {
-            doc.setFontSize(10);
-            const noteLines = doc.splitTextToSize(
-              `Note: ${normalizePdfText(h.note.content)}`,
-              166
-            );
-            doc.text(noteLines, 24, y);
-            y += noteLines.length * 5 + 4;
+            pdfNote(h.note.content);
           } else {
             y += 4;
           }
         }
       } else if (view === 'topic') {
-        // Topic: category header, bullets per quote, sub-bullets for notes.
-        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
+        const groups = {};
+        for (const h of allH) {
+          const key = h.color ?? 'uncategorized';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(h);
+        }
+        for (const [topicKey, items] of Object.entries(groups)) {
           const name =
             items[0]?.color_display_name ??
             getColorDisplayName(topicKey, document?.color_labels, lensColors);
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
+          pdfPageBreak();
           doc.setFontSize(13);
           doc.setFont(undefined, 'bold');
           doc.text(name, 20, y);
           y += 8;
-          doc.setFont(undefined, 'normal');
           for (const h of items) {
             const quote = normalizePdfText(h.highlighted_text || '');
-            if (y > 270) {
-              doc.addPage();
-              y = 20;
-            }
+            pdfPageBreak();
             doc.setFontSize(11);
-            const bulletLine = `• "${quote}", p.${h.page_number}`;
-            const bLines = doc.splitTextToSize(bulletLine, 170);
-            doc.text(bLines, 20, y);
-            y += bLines.length * 5 + 2;
+            doc.setFont(undefined, 'normal');
+            const bullet = '• ';
+            const bw = doc.getTextWidth(bullet);
+            doc.text(bullet, 20, y);
+            pdfQuoteBlock(quote, h.page_number, 20 + bw);
             if (h.note?.content) {
-              doc.setFontSize(10);
-              const noteLines = doc.splitTextToSize(
-                `- ${normalizePdfText(h.note.content)}`,
-                166
-              );
-              doc.text(noteLines, 24, y);
-              y += noteLines.length * 5 + 4;
+              pdfNote(h.note.content);
             } else {
               y += 4;
             }
@@ -694,49 +766,34 @@ export default function SummaryPage() {
           y += 4;
         }
       } else if (view === 'page') {
-        // Page: page header, bullets starting with Category: "quote", p.N, with notes as sub-bullets.
-        for (const { page, items } of groupedByPage) {
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
+        const pageGroups = {};
+        for (const h of allH) {
+          const key = h.page_number ?? 0;
+          if (!pageGroups[key]) pageGroups[key] = [];
+          pageGroups[key].push(h);
+        }
+        const pages = Object.keys(pageGroups).map((n) => parseInt(n, 10)).sort((a, b) => a - b);
+        for (const page of pages) {
+          const items = pageGroups[page];
+          pdfPageBreak();
           doc.setFontSize(13);
           doc.setFont(undefined, 'bold');
           doc.text(`Page ${page}`, 20, y);
           y += 8;
-          doc.setFont(undefined, 'normal');
           for (const h of items) {
             const colorDisplay =
               h.color_display_name ??
               getColorDisplayName(h.color, document?.color_labels, lensColors);
             const quote = normalizePdfText(h.highlighted_text || '');
-            if (y > 270) {
-              doc.addPage();
-              y = 20;
-            }
-            const maxWidth = 170;
-            const prefix = `• ${colorDisplay}: `;
+            pdfPageBreak();
             doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
+            const prefix = `• ${colorDisplay}: `;
             const prefixWidth = doc.getTextWidth(prefix);
             doc.text(prefix, 20, y);
-            const rest = `"${quote}", p.${h.page_number}`;
-            doc.setFont(undefined, 'normal');
-            const restLines = doc.splitTextToSize(rest, maxWidth - prefixWidth);
-            restLines.forEach((line, idx) => {
-              const lineY = y + idx * 5;
-              const x = 20 + (idx === 0 ? prefixWidth : 0);
-              doc.text(line, x, lineY);
-            });
-            y += restLines.length * 5 + 2;
+            pdfQuoteBlock(quote, h.page_number, 20 + prefixWidth);
             if (h.note?.content) {
-              doc.setFontSize(10);
-              const noteLines = doc.splitTextToSize(
-                `- ${normalizePdfText(h.note.content)}`,
-                166
-              );
-              doc.text(noteLines, 24, y);
-              y += noteLines.length * 5 + 4;
+              pdfNote(h.note.content);
             } else {
               y += 4;
             }
@@ -750,7 +807,7 @@ export default function SummaryPage() {
     } catch (err) {
       console.error('Export pdf failed', err);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
+  }, [document?.filename, document?.color_labels, highlights, lensColors, view, currentUser]);
 
   const handleStartEditNote = (h) => {
     setEditingNoteId(h.id);

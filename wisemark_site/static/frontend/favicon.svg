@@ -1,4 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#1e293b"/>
-  <text x="16" y="22" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="white" text-anchor="middle">W</text>
+  <!-- WiseMark: slate-950 bg, white serif W, slate-400 underline -->
+  <rect width="32" height="32" rx="8" fill="#020617"/>
+  <text
+    x="16"
+    y="19"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', Times, serif"
+    font-size="17"
+    font-weight="700"
+    fill="#ffffff"
+  >W</text>
+  <line
+    x1="9"
+    y1="24"
+    x2="23"
+    y2="24"
+    stroke="#94a3b8"
+    stroke-width="1.5"
+    stroke-linecap="round"
+  />
 </svg>

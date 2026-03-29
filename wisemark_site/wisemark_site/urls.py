@@ -35,7 +35,9 @@ def serve_spa(request, path=''):
             status=503,
         )
     with open(index_path, encoding='utf-8') as f:
-        return HttpResponse(f.read(), content_type='text/html')
+        response = HttpResponse(f.read(), content_type='text/html')
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
 
 
 urlpatterns = [

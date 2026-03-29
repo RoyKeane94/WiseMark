@@ -34,9 +34,9 @@ def create_system_presets(apps, schema_editor):
     pm_colors = [
         ('yellow', 'Business & Management', '#FBBF24', 0),
         ('green', 'Financials', '#34D399', 1),
-        ('blue', 'Market', '#60A5FA', 2),
+        ('blue', 'Competitive Positioning', '#60A5FA', 2),
         ('pink', 'Investment Risks', '#F472B6', 3),
-        ('orange', 'Investment Highlights', '#FB923C', 4),
+        ('orange', 'Valuation', '#FB923C', 4),
     ]
     for key, display_name, hex_val, sort_order in pm_colors:
         PresetColor.objects.get_or_create(
