@@ -1,11 +1,16 @@
+import json
 import logging
+import math
 import random
 import string
 
+import stripe
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives, get_connection
+from django.http import JsonResponse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,67 @@ User = get_user_model()
 CODE_LENGTH = 6
 CODE_TTL_MINUTES = 10
 BETA_CODE = 'WM1994'
+
+
+def _stripe_price_id_and_mode():
+    """Return (price_id_str, mode) for the configured product, or (None, None) if misconfigured."""
+    stripe.api_key = settings.STRIPE_SK
+    product = stripe.Product.retrieve(settings.STRIPE_PRODUCT_ID)
+    price_id = product.default_price
+    if not price_id:
+        prices = stripe.Price.list(product=settings.STRIPE_PRODUCT_ID, active=True, limit=1)
+        if not prices.data:
+            return None, None
+        price_id = prices.data[0].id
+    price_obj = stripe.Price.retrieve(price_id) if isinstance(price_id, str) else price_id
+    pid = price_id if isinstance(price_id, str) else price_id.id
+    mode = 'subscription' if getattr(price_obj, 'type', None) == 'recurring' else 'payment'
+    return pid, mode
+
+
+def _attach_stripe_session_to_account(session, user):
+    """Persist Stripe customer / subscription ids from a Checkout session."""
+    account, _ = Account.objects.get_or_create(user=user)
+    cid = session.customer
+    if isinstance(cid, dict):
+        cid = cid.get('id')
+    sub_id = session.subscription
+    if isinstance(sub_id, dict):
+        sub_id = sub_id.get('id')
+    elif sub_id is not None and not isinstance(sub_id, str) and hasattr(sub_id, 'id'):
+        sub_id = sub_id.id
+    updates = []
+    if cid:
+        account.stripe_customer_id = cid
+        updates.append('stripe_customer_id')
+    if sub_id:
+        account.stripe_subscription_id = sub_id
+        updates.append('stripe_subscription_id')
+    if updates:
+        account.save(update_fields=updates)
+
+
+def _billing_payload(account):
+    if not account:
+        return {
+            'account_type': None,
+            'trial_expires_at': None,
+            'trial_days_remaining': None,
+            'has_recurring_subscription': False,
+            'subscription_cancel_at_period_end': False,
+        }
+    trial_days = None
+    if account.account_type == Account.TRIAL and account.trial_expires_at:
+        delta = account.trial_expires_at - timezone.now()
+        trial_days = max(0, int(math.ceil(delta.total_seconds() / 86400)))
+    has_sub = bool(account.stripe_subscription_id)
+    return {
+        'account_type': account.account_type,
+        'trial_expires_at': account.trial_expires_at.isoformat() if account.trial_expires_at else None,
+        'trial_days_remaining': trial_days,
+        'has_recurring_subscription': has_sub,
+        'subscription_cancel_at_period_end': account.subscription_cancel_at_period_end,
+    }
 
 
 def _generate_code():
@@ -215,9 +281,9 @@ def request_code(request):
     if intent == 'register':
         beta_code = (request.data.get('beta_code') or '').strip()
         if beta_code != BETA_CODE:
-            logger.warning('request_code 400: invalid or missing beta code (register)')
+            logger.warning('request_code 400: invalid or missing sign up code (register)')
             return Response(
-                {'detail': 'Invalid beta code.', 'beta_code': ['Enter the private beta access code.']},
+                {'detail': 'Invalid sign up code.', 'beta_code': ['Please enter a valid sign up code.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -275,7 +341,9 @@ def verify_code(request):
     account, created = Account.objects.get_or_create(user=user)
     if is_new_user and beta_code == BETA_CODE:
         account.is_beta = True
-        account.save(update_fields=['is_beta'])
+        account.account_type = Account.TRIAL
+        account.trial_expires_at = timezone.now() + timedelta(days=30)
+        account.save(update_fields=['is_beta', 'account_type', 'trial_expires_at'])
     token, _ = Token.objects.get_or_create(user=user)
 
     if is_new_user:
@@ -308,6 +376,9 @@ def me(request):
         'email': getattr(request.user, 'email', '') or '',
         'account_id': account.pk if account else None,
         'is_beta': getattr(account, 'is_beta', False) if account else False,
+        'account_type': getattr(account, 'account_type', None) if account else None,
+        'trial_expires_at': account.trial_expires_at.isoformat() if account and account.trial_expires_at else None,
+        'billing': _billing_payload(account),
     })
 
 
@@ -342,3 +413,268 @@ def report_error(request):
         extra={'reference_code': reference_code},
     )
     return Response({'detail': 'Report received.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_checkout_session(request):
+    """Create a Stripe Checkout session for users without a sign-up code."""
+    email = (request.data.get('email') or '').strip().lower()
+    if not email:
+        return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if User.objects.filter(email=email).exists():
+        return Response(
+            {'detail': 'An account with this email already exists.', 'redirect': '/login'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    price_id, mode = _stripe_price_id_and_mode()
+    if not price_id:
+        logger.error('No active Stripe price found for product %s', settings.STRIPE_PRODUCT_ID)
+        return Response({'detail': 'Payment configuration error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    origin = (
+        request.META.get('HTTP_ORIGIN')
+        or settings.SITE_URL
+        or f"{request.scheme}://{request.get_host()}"
+    )
+
+    session = stripe.checkout.Session.create(
+        mode=mode,
+        customer_email=email,
+        line_items=[{'price': price_id, 'quantity': 1}],
+        success_url=f'{origin}/register/success?session_id={{CHECKOUT_SESSION_ID}}',
+        cancel_url=f'{origin}/register',
+        metadata={'email': email},
+    )
+
+    return Response({'checkout_url': session.url})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_upgrade_checkout_session(request):
+    """Stripe Checkout for a logged-in trial user to upgrade to paid."""
+    account = getattr(request.user, 'wisemark_account', None)
+    if not account or account.account_type != Account.TRIAL:
+        return Response(
+            {'detail': 'Only trial accounts can upgrade from here.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    price_id, mode = _stripe_price_id_and_mode()
+    if not price_id:
+        logger.error('No active Stripe price found for product %s', settings.STRIPE_PRODUCT_ID)
+        return Response({'detail': 'Payment configuration error.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    email = request.user.email.strip().lower()
+    origin = (
+        request.META.get('HTTP_ORIGIN')
+        or settings.SITE_URL
+        or f"{request.scheme}://{request.get_host()}"
+    )
+
+    session = stripe.checkout.Session.create(
+        mode=mode,
+        customer_email=email,
+        line_items=[{'price': price_id, 'quantity': 1}],
+        success_url=f'{origin}/app/settings?billing=upgrade&session_id={{CHECKOUT_SESSION_ID}}',
+        cancel_url=f'{origin}/app/settings',
+        metadata={
+            'email': email,
+            'intent': 'upgrade',
+            'user_id': str(request.user.id),
+        },
+    )
+
+    return Response({'checkout_url': session.url})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_upgrade_session(request):
+    """Complete a trial → paid upgrade after Stripe Checkout redirect."""
+    session_id = (request.data.get('session_id') or '').strip()
+    if not session_id:
+        return Response({'detail': 'session_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    stripe.api_key = settings.STRIPE_SK
+    try:
+        session = stripe.checkout.Session.retrieve(session_id, expand=['subscription'])
+    except stripe.error.InvalidRequestError:
+        return Response({'detail': 'Invalid checkout session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if session.payment_status != 'paid':
+        return Response({'detail': 'Payment not completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    meta = session.metadata or {}
+    if meta.get('intent') != 'upgrade' or str(meta.get('user_id')) != str(request.user.id):
+        return Response({'detail': 'Invalid checkout session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    email_session = (session.customer_email or meta.get('email') or '').strip().lower()
+    if email_session != request.user.email.strip().lower():
+        return Response({'detail': 'Email does not match this account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    account = getattr(request.user, 'wisemark_account', None)
+    if not account:
+        return Response({'detail': 'Account not found.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    account.account_type = Account.PAID
+    account.trial_expires_at = None
+    account.subscription_cancel_at_period_end = False
+    account.save(update_fields=['account_type', 'trial_expires_at', 'subscription_cancel_at_period_end'])
+    _attach_stripe_session_to_account(session, request.user)
+
+    return Response({'detail': 'Upgrade complete.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancel_subscription(request):
+    """Cancel the Stripe subscription immediately, then delete the user and all WiseMark data."""
+    user = request.user
+    account = getattr(user, 'wisemark_account', None)
+    if not account or not account.stripe_subscription_id:
+        return Response(
+            {'detail': 'No active subscription to cancel.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    stripe.api_key = settings.STRIPE_SK
+    sub_id = account.stripe_subscription_id
+    try:
+        stripe.Subscription.cancel(sub_id)
+    except stripe.error.InvalidRequestError as e:
+        err = str(e).lower()
+        if 'no such subscription' in err or 'could not be found' in err:
+            logger.info('Stripe subscription already removed: %s', sub_id)
+        elif 'canceled' in err or 'cancelled' in err or 'already been canceled' in err:
+            logger.info('Stripe subscription already canceled: %s', sub_id)
+        else:
+            logger.warning('Stripe cancel subscription failed: %s', e)
+            return Response(
+                {'detail': 'Could not cancel subscription in billing. Try again or contact support.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+    except stripe.error.StripeError as e:
+        logger.warning('Stripe cancel subscription failed: %s', e)
+        return Response(
+            {'detail': 'Could not cancel subscription. Try again or contact support.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    user.delete()
+    return Response({
+        'detail': 'Your subscription was cancelled and your WiseMark account has been deleted.',
+        'redirect': '/login',
+    })
+
+
+def _create_paid_user(email):
+    """Create a paid user account after successful Stripe checkout. Returns True if a new user was created."""
+    email = email.strip().lower()
+    if User.objects.filter(email=email).exists():
+        return False
+    user = User.objects.create_user(username=email, email=email, password=None)
+    user.set_unusable_password()
+    user.save()
+    account, _ = Account.objects.get_or_create(user=user)
+    account.account_type = Account.PAID
+    account.trial_expires_at = None
+    account.save(update_fields=['account_type', 'trial_expires_at'])
+    try:
+        _send_welcome_email(user)
+    except Exception:
+        logger.exception('Failed to send welcome email after Stripe payment to %s', email)
+    logger.info('Created paid user %s after Stripe checkout', email)
+    return True
+
+
+@csrf_exempt
+def stripe_webhook(request):
+    """Handle Stripe webhook events (plain Django view for raw body access)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
+    webhook_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+
+    stripe.api_key = settings.STRIPE_SK
+
+    if webhook_secret:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        except (ValueError, stripe.error.SignatureVerificationError) as e:
+            logger.warning('Stripe webhook signature verification failed: %s', e)
+            return JsonResponse({'error': 'Invalid signature'}, status=400)
+    else:
+        try:
+            event = json.loads(payload)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid payload'}, status=400)
+
+    event_type = event.get('type') if isinstance(event, dict) else event.type
+    if event_type == 'checkout.session.completed':
+        session_data = event['data']['object'] if isinstance(event, dict) else event.data.object
+        session_id = session_data.get('id') if isinstance(session_data, dict) else getattr(session_data, 'id', None)
+        email = (
+            (session_data.get('customer_email') if isinstance(session_data, dict) else getattr(session_data, 'customer_email', None))
+            or (session_data.get('metadata', {}) if isinstance(session_data, dict) else getattr(session_data, 'metadata', {})).get('email')
+        )
+        if email and session_id:
+            email = email.strip().lower()
+            _create_paid_user(email)
+            try:
+                full_session = stripe.checkout.Session.retrieve(session_id, expand=['subscription'])
+                user = User.objects.filter(email=email).first()
+                if user:
+                    _attach_stripe_session_to_account(full_session, user)
+            except stripe.error.StripeError:
+                logger.exception('Webhook: could not attach Stripe session %s', session_id)
+
+    return JsonResponse({'status': 'ok'})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_checkout(request):
+    """Verify a completed Stripe Checkout session and create the user account."""
+    session_id = (request.data.get('session_id') or '').strip()
+    if not session_id:
+        return Response({'detail': 'session_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    stripe.api_key = settings.STRIPE_SK
+    try:
+        session = stripe.checkout.Session.retrieve(session_id, expand=['subscription'])
+    except stripe.error.InvalidRequestError:
+        return Response({'detail': 'Invalid checkout session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if session.payment_status != 'paid':
+        return Response({'detail': 'Payment not completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    email = session.customer_email or (session.metadata or {}).get('email')
+    if not email:
+        return Response({'detail': 'No email associated with this session.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    email = email.strip().lower()
+    created = _create_paid_user(email)
+
+    user = User.objects.filter(email=email).first()
+    if user:
+        _attach_stripe_session_to_account(session, user)
+
+    SignOnCode.objects.filter(email=email).delete()
+    code = _generate_code()
+    SignOnCode.objects.create(
+        email=email,
+        code=code,
+        expires_at=timezone.now() + timedelta(minutes=CODE_TTL_MINUTES),
+    )
+    try:
+        _send_code_email(email, code, is_new_user=created)
+    except Exception:
+        logger.exception('Failed to send login code after checkout for %s', email)
+
+    return Response({'created': created, 'email': email})

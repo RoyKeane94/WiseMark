@@ -5,6 +5,13 @@ from django.db import models
 class Account(models.Model):
     """WiseMark account: one per user, used for auth and profile."""
 
+    TRIAL = 'trial'
+    PAID = 'paid'
+    ACCOUNT_TYPE_CHOICES = [
+        (TRIAL, 'Trial'),
+        (PAID, 'Paid'),
+    ]
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -13,8 +20,21 @@ class Account(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_beta = models.BooleanField(
         default=False,
-        help_text='True if user signed up with the private beta code.',
+        help_text='True if user signed up with a sign-up code.',
     )
+    account_type = models.CharField(
+        max_length=10,
+        choices=ACCOUNT_TYPE_CHOICES,
+        default=TRIAL,
+    )
+    trial_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the trial period ends. Null for paid accounts.',
+    )
+    stripe_customer_id = models.CharField(max_length=255, blank=True, default='')
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, default='')
+    subscription_cancel_at_period_end = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']

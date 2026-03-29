@@ -587,10 +587,10 @@ export default function PublicSummaryPage() {
           WiseMark
         </div>
         <Link
-          to="/login"
+          to="/register"
           className={`${btnPrimary} no-underline text-sm py-1.5 px-3.5 rounded-md`}
         >
-          Request access
+          Register
         </Link>
       </header>
 

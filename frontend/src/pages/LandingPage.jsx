@@ -16,10 +16,10 @@ export default function LandingPage() {
           WiseMark
         </div>
         <Link
-          to="/login"
+          to="/register"
           className={`${btnPrimary} no-underline text-sm py-1.5 px-3.5 rounded-md`}
         >
-          Request access
+          Register
         </Link>
       </nav>
 
@@ -40,7 +40,7 @@ export default function LandingPage() {
           to="/register"
           className={`${btnPrimary} inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-semibold no-underline hover:opacity-90`}
         >
-          Get early access
+          Register
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M3 8h10M9 4l4 4-4 4" />
           </svg>

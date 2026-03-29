@@ -47,6 +47,12 @@ ALLOWED_HOSTS = [
 # When set, generated share links use this base so they work when opened from any browser/device.
 SITE_URL = (os.environ.get('SITE_URL') or '').strip().rstrip('/') or None
 
+# Stripe
+STRIPE_PRODUCT_ID = os.environ.get('STRIPE_PRODUCT_ID', '')
+STRIPE_PK = os.environ.get('STRIPE_PK', '')
+STRIPE_SK = os.environ.get('STRIPE_SK', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+
 # CSRF: allow same-origin requests from these origins (Django 4+ checks Origin header)
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in

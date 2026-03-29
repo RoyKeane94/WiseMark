@@ -234,8 +234,8 @@ export default function PublicViewerPage() {
             WiseMark
           </Link>
         </div>
-        <Link to="/login" className={`${btnPrimary} no-underline text-sm py-1.5 px-3.5 rounded-md`}>
-          Request access
+        <Link to="/register" className={`${btnPrimary} no-underline text-sm py-1.5 px-3.5 rounded-md`}>
+          Register
         </Link>
       </header>
       {/* Viewer toolbar: same layout as normal ViewerPage */}

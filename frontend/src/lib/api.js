@@ -30,6 +30,11 @@ export const authAPI = {
   me: () => api.get('/auth/me/'),
   deleteAccount: () => api.post('/auth/me/delete/'),
   reportError: (data) => api.post('/auth/report-error/', data),
+  createCheckoutSession: (email) => api.post('/auth/create-checkout-session/', { email }),
+  verifyCheckout: (sessionId) => api.post('/auth/verify-checkout/', { session_id: sessionId }),
+  createUpgradeCheckoutSession: () => api.post('/auth/billing/create-upgrade-session/'),
+  verifyUpgradeSession: (sessionId) => api.post('/auth/billing/verify-upgrade/', { session_id: sessionId }),
+  cancelSubscription: () => api.post('/auth/billing/cancel-subscription/'),
 };
 
 export const projectsAPI = {

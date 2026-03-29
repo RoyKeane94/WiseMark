@@ -9,12 +9,13 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const setToken = useAuthStore((s) => s.setToken);
   const [email, setEmail] = useState('');
-  const [betaCode, setBetaCode] = useState('');
+  const [signUpCode, setSignUpCode] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState('email');
   const [error, setError] = useState('');
-  const [betaCodeError, setBetaCodeError] = useState('');
+  const [signUpCodeError, setSignUpCodeError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const inputRefs = useRef([]);
 
   useEffect(() => {
@@ -24,22 +25,22 @@ export default function RegisterPage() {
   const handleRequestCode = async (e) => {
     e.preventDefault();
     setError('');
-    setBetaCodeError('');
+    setSignUpCodeError('');
 
     const emailVal = email.trim();
-    const betaVal = betaCode.trim();
+    const codeVal = signUpCode.trim();
     if (!emailVal) {
       setError('Please enter your email address.');
       return;
     }
-    if (!betaVal) {
-      setBetaCodeError('Please enter your beta access code.');
+    if (!codeVal) {
+      setSignUpCodeError('Please enter your sign up code.');
       return;
     }
 
     setLoading(true);
     try {
-      await authAPI.requestCode(emailVal, 'register', { beta_code: betaVal });
+      await authAPI.requestCode(emailVal, 'register', { beta_code: codeVal });
       setStep('code');
     } catch (err) {
       const data = err.response?.data;
@@ -48,8 +49,8 @@ export default function RegisterPage() {
         return;
       }
       const msg = data?.detail || data?.beta_code?.[0] || data?.email?.[0] || 'Failed to send code';
-      if (data?.beta_code?.[0] || (data?.detail && data.detail.toLowerCase().includes('beta'))) {
-        setBetaCodeError(msg);
+      if (data?.beta_code?.[0] || (data?.detail && (data.detail.toLowerCase().includes('sign up code') || data.detail.toLowerCase().includes('code')))) {
+        setSignUpCodeError(msg);
       } else {
         setError(msg);
       }
@@ -58,11 +59,34 @@ export default function RegisterPage() {
     }
   };
 
+  const handleStripeCheckout = async () => {
+    const emailVal = email.trim();
+    if (!emailVal) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    setError('');
+    setCheckoutLoading(true);
+    try {
+      const { data } = await authAPI.createCheckoutSession(emailVal);
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      const data = err.response?.data;
+      if (data?.redirect === '/login') {
+        navigate('/login', { replace: true, state: { message: 'You already have an account. Please sign in.' } });
+        return;
+      }
+      setError(data?.detail || 'Failed to start checkout. Please try again.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
   const submitCode = async (digits) => {
     setError('');
     setLoading(true);
     try {
-      const { data } = await authAPI.verifyCode(email, digits.join(''), { beta_code: betaCode.trim() });
+      const { data } = await authAPI.verifyCode(email, digits.join(''), { beta_code: signUpCode.trim() });
       setToken(data.token);
       navigate('/', { replace: true });
     } catch (err) {
@@ -146,22 +170,22 @@ export default function RegisterPage() {
             />
           </label>
           <label className="block">
-            <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Private beta code</span>
+            <span className="block text-xs font-medium text-[#4a5568] uppercase tracking-wider mb-2">Sign up code</span>
             <input
               type="text"
-              value={betaCode}
-              onChange={(e) => { setBetaCode(e.target.value); setBetaCodeError(''); setError(''); }}
+              value={signUpCode}
+              onChange={(e) => { setSignUpCode(e.target.value); setSignUpCodeError(''); setError(''); }}
               className={`w-full px-3.5 py-3 text-[15px] text-[#1a1f2e] bg-[#f8f9fc] border rounded-[7px] outline-none transition-all duration-150 ${
-                betaCodeError ? 'border-[#c0392b] shadow-[0_0_0_3px_rgba(192,57,43,0.07)]' : 'border-[#e2e6ef]'
+                signUpCodeError ? 'border-[#c0392b] shadow-[0_0_0_3px_rgba(192,57,43,0.07)]' : 'border-[#e2e6ef]'
               } focus:border-[#2d3a52] focus:bg-white focus:shadow-[0_0_0_3px_rgba(45,58,82,0.08)]`}
-              placeholder="Enter your beta access code"
+              placeholder="Enter if you have a sign up code"
               autoComplete="off"
-              aria-invalid={!!betaCodeError}
-              aria-describedby={betaCodeError ? 'beta-code-error' : undefined}
+              aria-invalid={!!signUpCodeError}
+              aria-describedby={signUpCodeError ? 'signup-code-error' : undefined}
             />
-            {betaCodeError && (
+            {signUpCodeError && (
               <div
-                id="beta-code-error"
+                id="signup-code-error"
                 role="alert"
                 className="flex items-center gap-2.5 px-3.5 py-2.5 mt-2 rounded-[7px] border transition-all duration-150"
                 style={{
@@ -171,7 +195,7 @@ export default function RegisterPage() {
                 }}
               >
                 <AlertCircle className="shrink-0 w-4 h-4" style={{ color: '#b91c1c' }} />
-                <span className="text-[13px] font-medium">{betaCodeError}</span>
+                <span className="text-[13px] font-medium">{signUpCodeError}</span>
               </div>
             )}
           </label>
@@ -187,6 +211,25 @@ export default function RegisterPage() {
             {loading && (
               <span className="absolute inset-0 flex items-center justify-center">
                 <div className="w-[18px] h-[18px] border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </span>
+            )}
+          </button>
+          <div className="relative flex items-center justify-center my-1">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#e2e6ef]" /></div>
+            <span className="relative bg-white px-3 text-xs text-[#8a96ae]">or</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStripeCheckout}
+            disabled={checkoutLoading}
+            className={`w-full py-3.5 text-[15px] font-medium rounded-[7px] border border-[#e2e6ef] cursor-pointer transition-all duration-150 relative bg-white text-[#2d3a52] hover:bg-[#f8f9fc] ${
+              checkoutLoading ? 'pointer-events-none' : ''
+            }`}
+          >
+            <span className={checkoutLoading ? 'opacity-0' : ''}>Don&apos;t have a code? Subscribe</span>
+            {checkoutLoading && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <div className="w-[18px] h-[18px] border-2 border-[#2d3a52]/30 border-t-[#2d3a52] rounded-full animate-spin" />
               </span>
             )}
           </button>

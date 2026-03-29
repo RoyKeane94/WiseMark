@@ -3,12 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import useAuthStore from './stores/authStore';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import LandingPage from './pages/LandingPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ViewerPage from './pages/ViewerPage';
 import SummaryPage from './pages/SummaryPage';
 import SettingsPage from './pages/SettingsPage';
+import ExportDataPage from './pages/ExportDataPage';
 import LibraryPage from './pages/LibraryPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ErrorPage from './pages/ErrorPage';
@@ -75,6 +77,14 @@ export default function App() {
               </PublicRoute>
             }
           />
+          <Route
+            path="/register/success"
+            element={
+              <PublicRoute>
+                <CheckoutSuccessPage />
+              </PublicRoute>
+            }
+          />
           <Route path="/" element={<Navigate to="/app" replace />} />
           <Route
             path="/app"
@@ -97,6 +107,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/goodbye"
+            element={
+              <ProtectedRoute>
+                <ExportDataPage />
               </ProtectedRoute>
             }
           />
