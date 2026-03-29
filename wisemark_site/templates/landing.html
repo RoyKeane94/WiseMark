@@ -455,68 +455,6 @@
     font-weight: 500;
   }
 
-  /* PIPELINE */
-  .pipeline {
-    padding: 6rem 2.5rem;
-    background: var(--white);
-  }
-  .pipeline-inner { max-width: 900px; margin: 0 auto; }
-
-  .pipeline h2 {
-    font-family: 'Instrument Serif', serif;
-    font-size: clamp(1.9rem, 3.5vw, 2.6rem);
-    line-height: 1.2; font-weight: 400;
-    color: var(--slate-950);
-    margin-bottom: 1rem;
-  }
-
-  .pipeline-intro { max-width: 760px; }
-  .pipeline-lead {
-    font-size: 1.05rem; line-height: 1.7; color: var(--slate-600);
-    margin-bottom: 3rem;
-  }
-
-  .stages {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0;
-    border: 1px solid var(--slate-200);
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--white);
-  }
-
-  .stg {
-    padding: 2.25rem;
-    position: relative;
-  }
-  .stg:not(:last-child) { border-right: 1px solid var(--slate-200); }
-
-  .stg-num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem; text-transform: uppercase;
-    letter-spacing: 0.14em; color: var(--slate-400);
-    margin-bottom: 0.85rem;
-  }
-  .stg h3 {
-    font-family: 'Instrument Serif', serif;
-    font-size: 1.45rem; font-weight: 400;
-    color: var(--slate-900); margin-bottom: 0.75rem;
-  }
-  .stg p {
-    font-size: 0.85rem; line-height: 1.6; color: var(--slate-500);
-  }
-  .stg-badge {
-    display: inline-block; margin-top: 1.25rem;
-    padding: 0.25rem 0.65rem; font-size: 0.62rem;
-    font-family: 'JetBrains Mono', monospace;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    border-radius: 100px;
-  }
-  .b-live { background: rgba(52,211,153,0.1); color: #059669; border: 1px solid rgba(52,211,153,0.25); }
-  .b-next { background: rgba(59,130,246,0.07); color: #3b82f6; border: 1px solid rgba(59,130,246,0.18); }
-  .b-future { background: rgba(148,163,184,0.08); color: var(--slate-500); border: 1px solid var(--slate-200); }
-
   /* ANTI-COMPARISON */
   .comparison {
     padding: 6rem 2.5rem;
@@ -691,8 +629,6 @@
     .demo-body { grid-template-columns: 1fr; }
     .demo-sidebar { border-top: 1px solid var(--slate-200); }
     .demo-pdf { border-right: none; }
-    .stages { grid-template-columns: 1fr; }
-    .stg:not(:last-child) { border-right: none; border-bottom: 1px solid var(--slate-200); }
     .byproduct-grid { grid-template-columns: 1fr; }
     .comparison-grid { grid-template-columns: 1fr; }
     .security-grid { grid-template-columns: 1fr; gap: 1.5rem; }
@@ -715,7 +651,6 @@
   <div class="nav-links">
     <a href="#how" class="nav-link">How it works</a>
     <a href="#why" class="nav-link">Why it matters</a>
-    <a href="#pipeline" class="nav-link">Roadmap</a>
   </div>
   <div class="nav-cta-wrap">
     <a href="/login" class="nav-login">Login</a>
@@ -860,37 +795,6 @@
         <div class="card-num">When you're ready</div>
         <h3>Plug it into AI</h3>
         <p>WiseMark doesn't use AI. But when you want to, you can share your structured notes with Claude, ChatGPT, or any AI tool. The structure you've already created makes AI dramatically more useful.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- PIPELINE -->
-<section class="pipeline" id="pipeline">
-  <div class="pipeline-inner">
-    <div class="pipeline-intro">
-      <div class="section-label fade-in">Where this is going</div>
-      <h2 class="fade-in">Capture. Organise. Interrogate.</h2>
-      <p class="pipeline-lead fade-in">Each stage is independently valuable. Each one makes the next more powerful.</p>
-    </div>
-    <div class="stages fade-in">
-      <div class="stg">
-        <div class="stg-num">Stage 01</div>
-        <h3>Capture</h3>
-        <p>Highlight passages with categorised lenses. Get structured notes with exact quotes, page references, and your thinking. Export as a clean summary you can write from, revisit with context, or share with colleagues.</p>
-        <span class="stg-badge b-live">Live now</span>
-      </div>
-      <div class="stg">
-        <div class="stg-num">Stage 02</div>
-        <h3>Organise</h3>
-        <p>Search annotations across your entire deal library by theme. Flag margin compression in one report, find every document where you spotted the same pattern.</p>
-        <span class="stg-badge b-live">Live now</span>
-      </div>
-      <div class="stg">
-        <div class="stg-num">Stage 03</div>
-        <h3>Interrogate</h3>
-        <p>WiseMark will never build AI into the product. But it gives you the option to share your notes and thinking with Claude, ChatGPT, or any AI tool in a structured format, so you can finally get the most out of it.</p>
-        <span class="stg-badge b-future">On the roadmap</span>
       </div>
     </div>
   </div>

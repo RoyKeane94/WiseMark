@@ -30,6 +30,24 @@ CODE_TTL_MINUTES = 10
 BETA_CODE = 'WM1994'
 
 
+def _stripe_metadata_dict(metadata):
+    """Stripe returns metadata as StripeObject; use a real dict for .get() / validation."""
+    if metadata is None:
+        return {}
+    if isinstance(metadata, dict):
+        return metadata
+    to_dict = getattr(metadata, 'to_dict', None)
+    if callable(to_dict):
+        try:
+            return dict(to_dict(recursive=False))
+        except (TypeError, ValueError):
+            pass
+    try:
+        return {k: metadata[k] for k in metadata}
+    except (KeyError, TypeError, AttributeError):
+        return {}
+
+
 def _stripe_price_id_and_mode():
     """Return (price_id_str, mode) for the configured product, or (None, None) if misconfigured."""
     stripe.api_key = settings.STRIPE_SK
@@ -508,7 +526,7 @@ def verify_upgrade_session(request):
     if session.payment_status != 'paid':
         return Response({'detail': 'Payment not completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    meta = session.metadata or {}
+    meta = _stripe_metadata_dict(session.metadata)
     if meta.get('intent') != 'upgrade' or str(meta.get('user_id')) != str(request.user.id):
         return Response({'detail': 'Invalid checkout session.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -619,9 +637,15 @@ def stripe_webhook(request):
     if event_type == 'checkout.session.completed':
         session_data = event['data']['object'] if isinstance(event, dict) else event.data.object
         session_id = session_data.get('id') if isinstance(session_data, dict) else getattr(session_data, 'id', None)
+        meta_raw = (
+            session_data.get('metadata')
+            if isinstance(session_data, dict)
+            else getattr(session_data, 'metadata', None)
+        )
+        meta = _stripe_metadata_dict(meta_raw)
         email = (
             (session_data.get('customer_email') if isinstance(session_data, dict) else getattr(session_data, 'customer_email', None))
-            or (session_data.get('metadata', {}) if isinstance(session_data, dict) else getattr(session_data, 'metadata', {})).get('email')
+            or meta.get('email')
         )
         if email and session_id:
             email = email.strip().lower()
@@ -654,7 +678,7 @@ def verify_checkout(request):
     if session.payment_status != 'paid':
         return Response({'detail': 'Payment not completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    email = session.customer_email or (session.metadata or {}).get('email')
+    email = session.customer_email or _stripe_metadata_dict(session.metadata).get('email')
     if not email:
         return Response({'detail': 'No email associated with this session.'}, status=status.HTTP_400_BAD_REQUEST)
 
