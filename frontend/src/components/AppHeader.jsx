@@ -53,9 +53,11 @@ export default function AppHeader({ showBack = false, backTo = '/app' }) {
           onClick={() => navigate('/app')}
           className="flex items-center gap-2 hover:opacity-90 transition-opacity"
         >
-          <div className="w-6 h-6 rounded-md bg-slate-700 flex items-center justify-center text-white text-xs font-semibold" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            W
-          </div>
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+            <rect width="32" height="32" rx="8" fill="#020617"/>
+            <text x="16" y="19" textAnchor="middle" fontFamily="Georgia, 'Times New Roman', Times, serif" fontSize="17" fontWeight="700" fill="#ffffff">W</text>
+            <line x1="9" y1="24" x2="23" y2="24" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
           <span className="text-[1.05rem] font-medium text-slate-900" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             WiseMark
           </span>

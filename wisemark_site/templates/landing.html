@@ -55,10 +55,7 @@
   }
 
   .nav-logo-icon {
-    width: 26px; height: 26px; border-radius: 5px;
-    background: var(--slate-700);
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-size: 0.7rem; font-weight: 600;
+    width: 26px; height: 26px; flex-shrink: 0;
   }
 
   .nav-links {
@@ -708,7 +705,11 @@
 
 <nav>
   <a href="/" class="nav-logo">
-    <div class="nav-logo-icon">W</div>
+    <svg class="nav-logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#020617"/>
+      <text x="16" y="19" text-anchor="middle" font-family="Georgia,'Times New Roman',Times,serif" font-size="17" font-weight="700" fill="#fff">W</text>
+      <line x1="9" y1="24" x2="23" y2="24" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
     WiseMark
   </a>
   <div class="nav-links">
