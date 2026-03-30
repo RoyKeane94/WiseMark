@@ -456,11 +456,12 @@ def logout(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def me(request):
-    account = getattr(request.user, 'wisemark_account', None)
+    user = User.objects.select_related('wisemark_account').get(pk=request.user.pk)
+    account = getattr(user, 'wisemark_account', None)
     return Response({
-        'id': request.user.id,
-        'username': request.user.username,
-        'email': getattr(request.user, 'email', '') or '',
+        'id': user.id,
+        'username': user.username,
+        'email': getattr(user, 'email', '') or '',
         'account_id': account.pk if account else None,
         'is_beta': getattr(account, 'is_beta', False) if account else False,
         'account_type': getattr(account, 'account_type', None) if account else None,

@@ -2,7 +2,7 @@ import hashlib
 import logging
 import secrets
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
 logger = logging.getLogger(__name__)
 from django.db.models.deletion import ProtectedError
@@ -37,10 +37,16 @@ def _compute_pdf_hash(file_bytes):
 
 def _preset_queryset(request):
     """System presets (user=None) plus request.user's presets."""
-    from django.db.models import Q
     return HighlightPreset.objects.filter(
         Q(user__isnull=True) | Q(user=request.user)
     ).prefetch_related('colors').order_by('name')
+
+
+def _highlights_for_api(qs):
+    """select_related / prefetch so HighlightSerializer avoids N+1 on document preset colors."""
+    return qs.select_related('note', 'document__highlight_preset').prefetch_related(
+        'document__highlight_preset__colors'
+    )
 
 
 MAX_CUSTOM_LENSES = 5
@@ -62,8 +68,12 @@ class HighlightPresetViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        custom_count = HighlightPreset.objects.filter(user=user).count()
-        system_count = HighlightPreset.objects.filter(user__isnull=True).count()
+        counts = HighlightPreset.objects.aggregate(
+            custom=Count('id', filter=Q(user=user)),
+            system=Count('id', filter=Q(user__isnull=True)),
+        )
+        custom_count = counts['custom'] or 0
+        system_count = counts['system'] or 0
         if custom_count >= MAX_CUSTOM_LENSES:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'detail': f'You can create up to {MAX_CUSTOM_LENSES} custom lenses.'})
@@ -434,9 +444,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
             comment = (request.data.get('comment') or '').strip()
             if comment:
                 Note.objects.create(highlight=highlight, content=comment)
-            serializer = HighlightSerializer(highlight)
+            serializer = HighlightSerializer(
+                _highlights_for_api(Highlight.objects.filter(pk=highlight.pk)).get()
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        highlights = doc.highlights.select_related('note').all()
+        highlights = _highlights_for_api(doc.highlights).all()
         serializer = HighlightSerializer(highlights, many=True)
         return Response(serializer.data)
 
@@ -462,7 +474,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
             except Note.DoesNotExist:
                 if note_content:
                     Note.objects.create(highlight=highlight, content=note_content)
-        serializer = HighlightSerializer(highlight)
+        fresh = _highlights_for_api(doc.highlights).filter(pk=highlight.pk).first()
+        serializer = HighlightSerializer(fresh)
         return Response(serializer.data)
 
 
@@ -516,7 +529,7 @@ class LibraryView(APIView):
         return Response({
             'highlights': serializer.data,
             'projects': projects,
-            'total_highlights': len(serializer.data),
+            'total_highlights': len(highlights),
         })
 
 
@@ -527,11 +540,17 @@ class PublicDocumentSummaryView(APIView):
 
     def get(self, request, token):
         token = (token or '').strip()
-        doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
+        doc = (
+            Document.objects.filter(public_share_token=token, deleted_at__isnull=True)
+            .select_related('highlight_preset', 'project')
+            .prefetch_related('highlight_preset__colors', 'document_colors__color')
+            .defer('pdf_file')
+            .first()
+        )
         if not doc:
             return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = DocumentSerializer(doc, context={'request': request})
-        highlights = doc.highlights.select_related('note').all()
+        highlights = _highlights_for_api(doc.highlights).all()
         highlights_data = HighlightSerializer(highlights, many=True).data
         return Response(
             {
@@ -549,7 +568,11 @@ class PublicDocumentPdfView(APIView):
 
     def get(self, request, token):
         token = (token or '').strip()
-        doc = Document.objects.filter(public_share_token=token, deleted_at__isnull=True).first()
+        doc = (
+            Document.objects.filter(public_share_token=token, deleted_at__isnull=True)
+            .defer('pdf_file')
+            .first()
+        )
         if not doc:
             return Response({'detail': 'Public document not found.'}, status=status.HTTP_404_NOT_FOUND)
         pdf_bytes = doc.get_pdf_bytes()

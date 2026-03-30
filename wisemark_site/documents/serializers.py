@@ -220,7 +220,19 @@ class HighlightSerializer(serializers.ModelSerializer):
         return NoteSerializer(note).data
 
     def get_color_display_name(self, obj):
-        preset = obj.document.get_effective_preset()
+        doc = obj.document
+        preset = None
+        if doc.highlight_preset_id:
+            preset = doc.highlight_preset
+        else:
+            if not hasattr(self, '_cached_system_preset_hl'):
+                self._cached_system_preset_hl = (
+                    HighlightPreset.objects.filter(user__isnull=True)
+                    .prefetch_related('colors')
+                    .order_by('name')
+                    .first()
+                )
+            preset = self._cached_system_preset_hl
         if preset:
             for c in preset.colors.all():
                 if c.key == obj.color_key:

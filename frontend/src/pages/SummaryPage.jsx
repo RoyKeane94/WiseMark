@@ -9,6 +9,7 @@ import {
   hexToRgba,
 } from '../lib/colors';
 import { normalizePdfText } from '../lib/pdfText';
+import { mergeUpdatedHighlight, optimisticSetHighlightNote } from '../lib/highlightQuery';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border } from '../lib/theme';
 import {
   ArrowLeft,
@@ -239,10 +240,23 @@ export default function SummaryPage() {
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: ({ documentId, highlightId, note }) =>
-      documentsAPI.updateHighlight(documentId, highlightId, { note }),
-    onSuccess: (_, { documentId }) => {
-      queryClient.invalidateQueries({ queryKey: ['highlights', documentId] });
+    mutationFn: async ({ documentId, highlightId, note }) => {
+      const { data } = await documentsAPI.updateHighlight(documentId, highlightId, { note });
+      return { documentId, highlight: data };
+    },
+    onMutate: async ({ documentId, highlightId, note }) => {
+      await queryClient.cancelQueries({ queryKey: ['highlights', documentId] });
+      const previous = queryClient.getQueryData(['highlights', documentId]);
+      optimisticSetHighlightNote(queryClient, documentId, highlightId, note);
+      return { previous, documentId };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['highlights', context.documentId], context.previous);
+      }
+    },
+    onSuccess: ({ documentId, highlight }) => {
+      mergeUpdatedHighlight(queryClient, documentId, highlight);
     },
   });
 

@@ -12,6 +12,7 @@ import EditLensModal from '../components/EditPresetModal';
 import EditNotePopover from '../components/EditNotePopover';
 import { ArrowLeft, ZoomIn, ZoomOut, Loader2, Upload, PanelRightOpen, PanelRightClose, Settings2, FileStack, BookOpen } from 'lucide-react';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border, dividerV } from '../lib/theme';
+import { mergeUpdatedHighlight, optimisticSetHighlightNote } from '../lib/highlightQuery';
 
 export default function ViewerPage() {
   const { id } = useParams();
@@ -478,9 +479,18 @@ export default function ViewerPage() {
               }
               onSave={async (noteContent) => {
                 if (!id) return;
-                await documentsAPI.updateHighlight(id, editPopover.highlightId, { note: noteContent });
-                queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+                const highlightId = editPopover.highlightId;
+                await queryClient.cancelQueries({ queryKey: ['highlights', id] });
+                const previous = queryClient.getQueryData(['highlights', id]);
+                optimisticSetHighlightNote(queryClient, id, highlightId, noteContent);
                 setEditPopover(null);
+                try {
+                  const { data } = await documentsAPI.updateHighlight(id, highlightId, { note: noteContent });
+                  mergeUpdatedHighlight(queryClient, id, data);
+                } catch (err) {
+                  console.error('Failed to save note', err);
+                  queryClient.setQueryData(['highlights', id], previous);
+                }
               }}
               onClose={() => setEditPopover(null)}
             />
@@ -555,8 +565,16 @@ export default function ViewerPage() {
             onClearOpenEditForHighlightId={() => setOpenEditForHighlightId(null)}
             onHighlightNoteUpdate={async (highlightId, noteContent) => {
               if (!id) return;
-              await documentsAPI.updateHighlight(id, highlightId, { note: noteContent });
-              queryClient.invalidateQueries({ queryKey: ['highlights', id] });
+              await queryClient.cancelQueries({ queryKey: ['highlights', id] });
+              const previous = queryClient.getQueryData(['highlights', id]);
+              optimisticSetHighlightNote(queryClient, id, highlightId, noteContent);
+              try {
+                const { data } = await documentsAPI.updateHighlight(id, highlightId, { note: noteContent });
+                mergeUpdatedHighlight(queryClient, id, data);
+              } catch (err) {
+                console.error('Failed to save note', err);
+                queryClient.setQueryData(['highlights', id], previous);
+              }
             }}
             onHighlightDelete={async (highlightId) => {
               if (!id) return;
