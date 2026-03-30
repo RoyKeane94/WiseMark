@@ -43,7 +43,7 @@ export default function TrialExpiredGate() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
+      className="fixed inset-0 z-9999 flex items-center justify-center p-6"
       style={{ background: 'rgba(15, 23, 42, 0.92)', backdropFilter: 'blur(8px)' }}
       role="dialog"
       aria-modal="true"

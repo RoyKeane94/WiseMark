@@ -357,6 +357,57 @@ export default function PublicSummaryPage() {
       const { saveAs } = await import('file-saver');
       const doc = new jsPDF();
       let y = 20;
+      const PAGE_BOTTOM = 270;
+      const pdfPageBreak = () => {
+        if (y > PAGE_BOTTOM) {
+          doc.addPage();
+          y = 20;
+        }
+      };
+
+      const pdfQuoteBlock = (quoteStr, pageNum, startX, opts = {}) => {
+        const quoteBold = opts.quoteBold === true;
+        const lineWidth = Math.max(20, 190 - startX);
+        doc.setFontSize(11);
+        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
+        doc.setTextColor(0);
+        const qText = `"${quoteStr}"`;
+        const qLines = doc.splitTextToSize(qText, lineWidth);
+        qLines.forEach((line) => {
+          if (y > PAGE_BOTTOM) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, startX, y);
+          y += 5;
+        });
+        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
+        const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(128);
+        doc.text(` (p.${pageNum})`, startX + lastLineW, y - 5);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'normal');
+        y += 2;
+      };
+
+      const pdfNote = (noteContent) => {
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(0);
+        const noteLines = doc.splitTextToSize(normalizePdfText(noteContent), 166);
+        noteLines.forEach((line) => {
+          if (y > PAGE_BOTTOM) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, 24, y);
+          y += 5;
+        });
+        y += 4;
+        doc.setFont(undefined, 'normal');
+      };
+
       doc.setFontSize(16);
       doc.text(document?.filename ?? 'Document Summary', 20, y);
       y += 12;
@@ -371,33 +422,15 @@ export default function PublicSummaryPage() {
               lensColors
             );
           const quote = normalizePdfText(h.highlighted_text || '');
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
-          const maxWidth = 170;
-          const categoryLabel = `${colorDisplay}: `;
+          pdfPageBreak();
           doc.setFontSize(11);
           doc.setFont(undefined, 'bold');
+          const categoryLabel = `${colorDisplay}: `;
           const catWidth = doc.getTextWidth(categoryLabel);
           doc.text(categoryLabel, 20, y);
-          const rest = `"${quote}", p.${h.page_number}`;
-          doc.setFont(undefined, 'normal');
-          const restLines = doc.splitTextToSize(rest, maxWidth - catWidth);
-          restLines.forEach((line, idx) => {
-            const lineY = y + idx * 5;
-            const x = 20 + (idx === 0 ? catWidth : 0);
-            doc.text(line, x, lineY);
-          });
-          y += restLines.length * 5 + 2;
+          pdfQuoteBlock(quote, h.page_number, 20 + catWidth);
           if (h.note?.content) {
-            doc.setFontSize(10);
-            const noteLines = doc.splitTextToSize(
-              `Note: ${normalizePdfText(h.note.content)}`,
-              166
-            );
-            doc.text(noteLines, 24, y);
-            y += noteLines.length * 5 + 4;
+            pdfNote(h.note.content);
           } else {
             y += 4;
           }
@@ -411,34 +444,22 @@ export default function PublicSummaryPage() {
               document?.color_labels,
               lensColors
             );
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
+          pdfPageBreak();
           doc.setFontSize(13);
           doc.setFont(undefined, 'bold');
           doc.text(name, 20, y);
           y += 8;
-          doc.setFont(undefined, 'normal');
           for (const h of items) {
             const quote = normalizePdfText(h.highlighted_text || '');
-            if (y > 270) {
-              doc.addPage();
-              y = 20;
-            }
+            pdfPageBreak();
             doc.setFontSize(11);
-            const bulletLine = `• "${quote}", p.${h.page_number}`;
-            const bLines = doc.splitTextToSize(bulletLine, 170);
-            doc.text(bLines, 20, y);
-            y += bLines.length * 5 + 2;
+            doc.setFont(undefined, 'normal');
+            const bullet = '• ';
+            const bw = doc.getTextWidth(bullet);
+            doc.text(bullet, 20, y);
+            pdfQuoteBlock(quote, h.page_number, 20 + bw, { quoteBold: true });
             if (h.note?.content) {
-              doc.setFontSize(10);
-              const noteLines = doc.splitTextToSize(
-                `- ${normalizePdfText(h.note.content)}`,
-                166
-              );
-              doc.text(noteLines, 24, y);
-              y += noteLines.length * 5 + 4;
+              pdfNote(h.note.content);
             } else {
               y += 4;
             }
@@ -447,15 +468,11 @@ export default function PublicSummaryPage() {
         }
       } else if (view === 'page') {
         for (const { page, items } of groupedByPage) {
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
+          pdfPageBreak();
           doc.setFontSize(13);
           doc.setFont(undefined, 'bold');
           doc.text(`Page ${page}`, 20, y);
           y += 8;
-          doc.setFont(undefined, 'normal');
           for (const h of items) {
             const colorDisplay =
               h.color_display_name ??
@@ -465,33 +482,15 @@ export default function PublicSummaryPage() {
                 lensColors
               );
             const quote = normalizePdfText(h.highlighted_text || '');
-            if (y > 270) {
-              doc.addPage();
-              y = 20;
-            }
-            const maxWidth = 170;
-            const prefix = `• ${colorDisplay}: `;
+            pdfPageBreak();
             doc.setFontSize(11);
             doc.setFont(undefined, 'bold');
+            const prefix = `• ${colorDisplay}: `;
             const prefixWidth = doc.getTextWidth(prefix);
             doc.text(prefix, 20, y);
-            const rest = `"${quote}", p.${h.page_number}`;
-            doc.setFont(undefined, 'normal');
-            const restLines = doc.splitTextToSize(rest, maxWidth - prefixWidth);
-            restLines.forEach((line, idx) => {
-              const lineY = y + idx * 5;
-              const x = 20 + (idx === 0 ? prefixWidth : 0);
-              doc.text(line, x, lineY);
-            });
-            y += restLines.length * 5 + 2;
+            pdfQuoteBlock(quote, h.page_number, 20 + prefixWidth);
             if (h.note?.content) {
-              doc.setFontSize(10);
-              const noteLines = doc.splitTextToSize(
-                `- ${normalizePdfText(h.note.content)}`,
-                166
-              );
-              doc.text(noteLines, 24, y);
-              y += noteLines.length * 5 + 4;
+              pdfNote(h.note.content);
             } else {
               y += 4;
             }

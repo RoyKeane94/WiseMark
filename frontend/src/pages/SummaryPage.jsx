@@ -717,24 +717,24 @@ export default function SummaryPage() {
       const PAGE_BOTTOM = 280;
       const pdfPageBreak = () => { if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; } };
 
-      const pdfQuoteBlock = (quoteStr, pageNum, startX) => {
+      const pdfQuoteBlock = (quoteStr, pageNum, startX, opts = {}) => {
+        const quoteBold = opts.quoteBold === true;
+        const lineWidth = Math.max(20, 190 - startX);
         doc.setFontSize(11);
-        doc.setFont(undefined, 'normal');
+        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
         doc.setTextColor(0);
         const qText = `"${quoteStr}"`;
-        const qLines = doc.splitTextToSize(qText, 170 - (startX - 20));
-        qLines.forEach((line, idx) => {
+        const qLines = doc.splitTextToSize(qText, lineWidth);
+        qLines.forEach((line) => {
           if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; }
-          const x = idx === 0 ? startX : 20;
-          doc.text(line, x, y);
+          doc.text(line, startX, y);
           y += 5;
         });
-        const lastLineX = qLines.length === 1 ? startX : 20;
-        doc.setFont(undefined, 'normal');
+        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
         const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
         doc.setFont(undefined, 'italic');
         doc.setTextColor(128);
-        doc.text(` (p.${pageNum})`, lastLineX + lastLineW, y - 5);
+        doc.text(` (p.${pageNum})`, startX + lastLineW, y - 5);
         doc.setTextColor(0);
         doc.setFont(undefined, 'normal');
         y += 2;
@@ -797,7 +797,7 @@ export default function SummaryPage() {
             const bullet = '• ';
             const bw = doc.getTextWidth(bullet);
             doc.text(bullet, 20, y);
-            pdfQuoteBlock(quote, h.page_number, 20 + bw);
+            pdfQuoteBlock(quote, h.page_number, 20 + bw, { quoteBold: true });
             if (h.note?.content) {
               pdfNote(h.note.content);
             } else {
