@@ -8,6 +8,7 @@ import stripe
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives, get_connection
+from django.templatetags.static import static
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -130,6 +131,68 @@ def _get_accounts_connection():
     )
 
 
+# Matches `static/frontend/favicon.svg` and the landing nav mark (for clients with no remote images).
+_EMAIL_LOGO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" width="32" height="32" '
+    'style="display:block;border-radius:8px;">'
+    '<rect width="32" height="32" rx="8" fill="#020617"/>'
+    '<text x="16" y="19" text-anchor="middle" font-family="Georgia, \'Times New Roman\', Times, serif" '
+    'font-size="17" font-weight="700" fill="#ffffff">W</text>'
+    '<line x1="9" y1="24" x2="23" y2="24" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round"/>'
+    '</svg>'
+)
+
+
+def _email_public_site_url():
+    u = getattr(settings, 'SITE_URL', None)
+    return (u or '').strip().rstrip('/') if u else ''
+
+
+def _email_favicon_absolute_url():
+    """Public URL for favicon.svg (same asset as browser tab)."""
+    base = _email_public_site_url()
+    if not base:
+        return None
+    path = static('frontend/favicon.svg')
+    if not path.startswith('/'):
+        path = '/' + path
+    return f'{base}{path}'
+
+
+def _email_head_extras_html():
+    """Optional favicon link for HTML email <head> when we have a public base URL."""
+    fav = _email_favicon_absolute_url()
+    if not fav:
+        return ''
+    return (
+        f'<link rel="icon" type="image/svg+xml" href="{fav}">'
+    )
+
+
+def _email_brand_header_html():
+    """Nav-style mark + wordmark (matches landing top-left)."""
+    site = _email_public_site_url()
+    home = site if site else '#'
+    fav = _email_favicon_absolute_url()
+    if fav:
+        logo_inner = (
+            f'<img src="{fav}" width="32" height="32" alt="WiseMark" '
+            'style="display:block;border-radius:8px;border:0;">'
+        )
+    else:
+        logo_inner = _EMAIL_LOGO_SVG
+    return f"""<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 20px 0;">
+<tr>
+  <td style="vertical-align:middle;width:32px;height:32px;">
+    <a href="{home}" style="text-decoration:none;color:inherit;">{logo_inner}</a>
+  </td>
+  <td style="vertical-align:middle;padding-left:10px;">
+    <a href="{home}" style="text-decoration:none;font-size:15px;font-weight:600;color:#1e293b;letter-spacing:-0.2px;">WiseMark</a>
+  </td>
+</tr>
+</table>"""
+
+
 def _get_tb_connection():
     """Return a Django SMTP connection using TB_EMAIL (tb@wisemarkhq.com) from .env."""
     return get_connection(
@@ -170,16 +233,19 @@ It starts with the first document. Please let me know how you get on.
 Tom
 Founder, WiseMark
 """
+    _head_ex = _email_head_extras_html()
+    _brand = _email_brand_header_html()
     html = f"""\
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"></head>
+<head><meta charset="UTF-8">{_head_ex}</head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
         <tr>
           <td style="padding:32px 36px;">
+            {_brand}
             <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">Welcome to WiseMark!</p>
             <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">Two things happen when you use WiseMark.</p>
             <p style="margin:0 0 1.25rem 0;font-size:16px;line-height:1.65;color:#1e293b;">First, you read better. <strong>Knowing you're about to annotate changes how you read.</strong> You slow down in the right places. You commit to a view. The discipline of structured annotation is most of the value, WiseMark just makes it frictionless.</p>
@@ -209,20 +275,19 @@ def _send_code_email(to_email, code, is_new_user=False):
     subject = f'Your WiseMark {"sign-up" if is_new_user else "sign-in"} code'
     from_addr = f'WiseMark <{getattr(settings, "ACCOUNTS_DEFAULT_FROM_EMAIL", None) or settings.DEFAULT_FROM_EMAIL}>'
 
+    _head_ex = _email_head_extras_html()
+    _brand = _email_brand_header_html()
     html = f"""\
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"></head>
+<head><meta charset="UTF-8">{_head_ex}</head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
     <tr><td align="center">
       <table width="460" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
         <tr>
           <td style="padding:28px 32px 20px 32px;">
-            <table cellpadding="0" cellspacing="0"><tr>
-              <td style="width:28px;height:28px;background:#1e293b;border-radius:6px;text-align:center;vertical-align:middle;color:#ffffff;font-size:13px;font-weight:700;line-height:28px;">W</td>
-              <td style="padding-left:10px;font-size:15px;font-weight:600;color:#1e293b;letter-spacing:-0.2px;">WiseMark</td>
-            </tr></table>
+            {_brand}
           </td>
         </tr>
         <tr>
