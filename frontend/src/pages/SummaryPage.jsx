@@ -449,7 +449,7 @@ export default function SummaryPage() {
 
   const handleExportDocx = useCallback(async () => {
     try {
-      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, TabStopPosition, TabStopType } = await import('docx');
+      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, TabStopType } = await import('docx');
       const { saveAs } = await import('file-saver');
 
       const F = 'Arial';
@@ -504,21 +504,25 @@ export default function SummaryPage() {
           spacing: { after: 200 },
         }),
         new Paragraph({
+          alignment: AlignmentType.LEFT,
+          tabStops: [{ type: TabStopType.LEFT, position: 4608 }],
           children: [
-            new TextRun({ text: 'Date reviewed:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: 'Date reviewed: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: dateStr, size: 20, font: F }),
-            new TextRun({ text: '        ', size: 20, font: F }),
-            new TextRun({ text: 'Analyst:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: '\t', size: 20, font: F }),
+            new TextRun({ text: 'Analyst: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: analystEmail, size: 20, font: F }),
           ],
           spacing: { after: 60 },
         }),
         new Paragraph({
+          alignment: AlignmentType.LEFT,
+          tabStops: [{ type: TabStopType.LEFT, position: 4608 }],
           children: [
-            new TextRun({ text: 'Total annotations:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: 'Total annotations: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: String(allHighlights.length), bold: true, size: 20, font: F }),
-            new TextRun({ text: '        ', size: 20, font: F }),
-            new TextRun({ text: 'Total comments:  ', size: 20, font: F, color: '666666' }),
+            new TextRun({ text: '\t', size: 20, font: F }),
+            new TextRun({ text: 'Total comments: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: String(totalComments), bold: true, size: 20, font: F }),
           ],
           spacing: { after: 120 },
@@ -652,27 +656,42 @@ export default function SummaryPage() {
       y += 10;
 
       doc.setFontSize(10);
+      const metaPad = 1.2;
+      let xMeta = 20;
       doc.setTextColor(100);
-      doc.text('Date reviewed:', 20, y);
+      doc.setFont(undefined, 'normal');
+      const dateLbl = 'Date reviewed: ';
+      doc.text(dateLbl, xMeta, y);
+      xMeta += doc.getTextWidth(dateLbl) + metaPad;
       doc.setTextColor(0);
-      doc.text(dateStr, 50, y);
-      const analystX = 110;
+      doc.text(dateStr, xMeta, y);
+      xMeta += doc.getTextWidth(dateStr) + 5;
       doc.setTextColor(100);
-      doc.text('Analyst:', analystX, y);
+      const analystLbl = 'Analyst: ';
+      doc.text(analystLbl, xMeta, y);
+      xMeta += doc.getTextWidth(analystLbl) + metaPad;
       doc.setTextColor(0);
-      doc.text(analystEmail, analystX + 22, y);
+      doc.text(analystEmail, xMeta, y);
       y += 6;
+      xMeta = 20;
       doc.setTextColor(100);
-      doc.text('Total annotations:', 20, y);
+      doc.setFont(undefined, 'normal');
+      const annLbl = 'Total annotations: ';
+      doc.text(annLbl, xMeta, y);
+      xMeta += doc.getTextWidth(annLbl) + metaPad;
       doc.setTextColor(0);
       doc.setFont(undefined, 'bold');
-      doc.text(String(allH.length), 55, y);
+      const annVal = String(allH.length);
+      doc.text(annVal, xMeta, y);
+      xMeta += doc.getTextWidth(annVal) + 5;
       doc.setFont(undefined, 'normal');
       doc.setTextColor(100);
-      doc.text('Total comments:', analystX, y);
+      const comLbl = 'Total comments: ';
+      doc.text(comLbl, xMeta, y);
+      xMeta += doc.getTextWidth(comLbl) + metaPad;
       doc.setTextColor(0);
       doc.setFont(undefined, 'bold');
-      doc.text(String(totalComments), analystX + 38, y);
+      doc.text(String(totalComments), xMeta, y);
       doc.setFont(undefined, 'normal');
       y += 8;
 

@@ -68,7 +68,7 @@ export default function ExportDataPage() {
   const handleDocx = useCallback(async () => {
     setDocxBusy(true);
     try {
-      const { Document, Packer, Paragraph, TextRun, BorderStyle } = await import('docx');
+      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, TabStopType } = await import('docx');
       const { saveAs } = await import('file-saver');
       const F = 'Arial';
       const quoteText = (raw) => `"${normalizePdfText(raw || '')}"`;
@@ -121,10 +121,12 @@ export default function ExportDataPage() {
           spacing: { after: 40 },
         }),
         new Paragraph({
+          alignment: AlignmentType.LEFT,
+          tabStops: [{ type: TabStopType.LEFT, position: 4608 }],
           children: [
             new TextRun({ text: 'Exported: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: dateStr, size: 20, font: F }),
-            new TextRun({ text: '     ', size: 20, font: F }),
+            new TextRun({ text: '\t', size: 20, font: F }),
             new TextRun({ text: 'Total annotations: ', size: 20, font: F, color: '666666' }),
             new TextRun({ text: String(highlights.length), bold: true, size: 20, font: F }),
           ],
