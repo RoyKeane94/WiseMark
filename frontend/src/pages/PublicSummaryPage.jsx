@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { publicDocumentsAPI } from '../lib/api';
@@ -8,6 +9,11 @@ import {
   hexToRgba,
 } from '../lib/colors';
 import { normalizePdfText } from '../lib/pdfText';
+import {
+  buildTypographicExportModel,
+  downloadTypographicPdf,
+  downloadTypographicDocx,
+} from '../lib/exportTypographic';
 import { pageWrapper, text, bg, border, btnPrimary } from '../lib/theme';
 import {
   FileText,
@@ -29,6 +35,9 @@ export default function PublicSummaryPage() {
   const [activeFilters, setActiveFilters] = useState(new Set());
   const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [showExport, setShowExport] = useState(false);
+  const [exportDropdownPos, setExportDropdownPos] = useState(null);
+  const [exportGenerating, setExportGenerating] = useState(false);
+  const exportMenuBtnRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const [showMobilePdfMessage, setShowMobilePdfMessage] = useState(false);
 
@@ -143,374 +152,72 @@ export default function PublicSummaryPage() {
     setShowExport(false);
   }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
 
-  const handleExportDocx = useCallback(async () => {
-    try {
-      const { Document, Packer, Paragraph, TextRun } = await import('docx');
-      const { saveAs } = await import('file-saver');
-      const children = [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: document?.filename ?? 'Document Summary',
-              bold: true,
-              size: 28,
-            }),
-          ],
-          spacing: { after: 200 },
-        }),
-      ];
-      if (view === 'sequence') {
-        for (const h of filteredHighlights) {
-          const colorDisplay =
-            h.color_display_name ??
-            getColorDisplayName(
-              h.color,
-              document?.color_labels,
-              lensColors
-            );
-          const quote = h.highlighted_text || '';
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `${colorDisplay}: `,
-                  bold: true,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `"${quote}"`,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `, `,
-                  size: 22,
-                }),
-                new TextRun({
-                  text: `p.${h.page_number}`,
-                  italics: true,
-                  size: 20,
-                }),
-              ],
-              spacing: {
-                before: 120,
-                after: h.note?.content ? 20 : 60,
-              },
-            })
-          );
-          if (h.note?.content) {
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: h.note.content,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-                spacing: { after: 80 },
-              })
-            );
-          }
-        }
-      } else if (view === 'topic') {
-        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
-          const name =
-            items[0]?.color_display_name ??
-            getColorDisplayName(
-              topicKey,
-              document?.color_labels,
-              lensColors
-            );
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: name,
-                  bold: true,
-                  size: 24,
-                }),
-              ],
-              spacing: { before: 160, after: 40 },
-            })
-          );
-          for (const h of items) {
-            const quote = h.highlighted_text || '';
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({
-                    text: `"${quote}"`,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `, `,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `p.${h.page_number}`,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-              })
-            );
-            if (h.note?.content) {
-              children.push(
-                new Paragraph({
-                  bullet: { level: 1 },
-                  children: [
-                    new TextRun({
-                      text: h.note.content,
-                      size: 20,
-                    }),
-                  ],
-                })
-              );
-            }
-          }
-        }
-      } else if (view === 'page') {
-        for (const { page, items } of groupedByPage) {
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Page ${page}`,
-                  bold: true,
-                  size: 24,
-                }),
-              ],
-              spacing: { before: 160, after: 40 },
-            })
-          );
-          for (const h of items) {
-            const colorDisplay =
-              h.color_display_name ??
-              getColorDisplayName(
-                h.color,
-                document?.color_labels,
-                lensColors
-              );
-            const quote = h.highlighted_text || '';
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({
-                    text: `${colorDisplay}: `,
-                    bold: true,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `"${quote}"`,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `, `,
-                    size: 22,
-                  }),
-                  new TextRun({
-                    text: `p.${h.page_number}`,
-                    italics: true,
-                    size: 20,
-                  }),
-                ],
-              })
-            );
-            if (h.note?.content) {
-              children.push(
-                new Paragraph({
-                  bullet: { level: 1 },
-                  children: [
-                    new TextRun({
-                      text: h.note.content,
-                      size: 20,
-                    }),
-                  ],
-                })
-              );
-            }
-          }
-        }
-      }
-      const docxDoc = new Document({
-        sections: [{ children }],
+  useLayoutEffect(() => {
+    if (!showExport) {
+      setExportDropdownPos(null);
+      return;
+    }
+    const el = exportMenuBtnRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setExportDropdownPos({
+        top: r.bottom + 4,
+        right: window.innerWidth - r.right,
       });
-      const blob = await Packer.toBlob(docxDoc);
-      saveAs(
-        blob,
-        `${(document?.filename || 'summary').replace(
-          /\.pdf$/i,
-          ''
-        )}-highlights.docx`
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [showExport]);
+
+  const handleExportDocx = useCallback(async () => {
+    setShowExport(false);
+    setExportGenerating(true);
+    try {
+      const model = buildTypographicExportModel({
+        highlights: filteredHighlights,
+        document,
+        lensColors,
+        view,
+        analystEmail: '',
+      });
+      await downloadTypographicDocx(
+        model,
+        (document?.filename || 'summary').replace(/\.pdf$/i, '')
       );
-      setShowExport(false);
     } catch (err) {
       console.error('Public export docx failed', err);
+    } finally {
+      setExportGenerating(false);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
+  }, [document, filteredHighlights, lensColors, view]);
 
   const handleExportPdf = useCallback(async () => {
+    setShowExport(false);
+    setExportGenerating(true);
     try {
-      const { jsPDF } = await import('jspdf');
-      const { saveAs } = await import('file-saver');
-      const doc = new jsPDF();
-      let y = 20;
-      const PAGE_BOTTOM = 270;
-      const pdfPageBreak = () => {
-        if (y > PAGE_BOTTOM) {
-          doc.addPage();
-          y = 20;
-        }
-      };
-
-      const pdfQuoteBlock = (quoteStr, pageNum, startX, opts = {}) => {
-        const quoteBold = opts.quoteBold === true;
-        const lineWidth = Math.max(20, 190 - startX);
-        doc.setFontSize(11);
-        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
-        doc.setTextColor(0);
-        const qText = `"${quoteStr}"`;
-        const qLines = doc.splitTextToSize(qText, lineWidth);
-        qLines.forEach((line) => {
-          if (y > PAGE_BOTTOM) {
-            doc.addPage();
-            y = 20;
-          }
-          doc.text(line, startX, y);
-          y += 5;
-        });
-        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
-        const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
-        doc.setFont(undefined, 'italic');
-        doc.setTextColor(128);
-        doc.text(` (p.${pageNum})`, startX + lastLineW, y - 5);
-        doc.setTextColor(0);
-        doc.setFont(undefined, 'normal');
-        y += 2;
-      };
-
-      const pdfNote = (noteContent) => {
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'italic');
-        doc.setTextColor(0);
-        const noteLines = doc.splitTextToSize(normalizePdfText(noteContent), 166);
-        noteLines.forEach((line) => {
-          if (y > PAGE_BOTTOM) {
-            doc.addPage();
-            y = 20;
-          }
-          doc.text(line, 24, y);
-          y += 5;
-        });
-        y += 4;
-        doc.setFont(undefined, 'normal');
-      };
-
-      doc.setFontSize(16);
-      doc.text(document?.filename ?? 'Document Summary', 20, y);
-      y += 12;
-      doc.setFont(undefined, 'normal');
-      if (view === 'sequence') {
-        for (const h of filteredHighlights) {
-          const colorDisplay =
-            h.color_display_name ??
-            getColorDisplayName(
-              h.color,
-              document?.color_labels,
-              lensColors
-            );
-          const quote = normalizePdfText(h.highlighted_text || '');
-          pdfPageBreak();
-          doc.setFontSize(11);
-          doc.setFont(undefined, 'bold');
-          const categoryLabel = `${colorDisplay}: `;
-          const catWidth = doc.getTextWidth(categoryLabel);
-          doc.text(categoryLabel, 20, y);
-          pdfQuoteBlock(quote, h.page_number, 20 + catWidth);
-          if (h.note?.content) {
-            pdfNote(h.note.content);
-          } else {
-            y += 4;
-          }
-        }
-      } else if (view === 'topic') {
-        for (const [topicKey, items] of Object.entries(groupedByTopic)) {
-          const name =
-            items[0]?.color_display_name ??
-            getColorDisplayName(
-              topicKey,
-              document?.color_labels,
-              lensColors
-            );
-          pdfPageBreak();
-          doc.setFontSize(13);
-          doc.setFont(undefined, 'bold');
-          doc.text(name, 20, y);
-          y += 8;
-          for (const h of items) {
-            const quote = normalizePdfText(h.highlighted_text || '');
-            pdfPageBreak();
-            doc.setFontSize(11);
-            doc.setFont(undefined, 'normal');
-            const bullet = '• ';
-            const bw = doc.getTextWidth(bullet);
-            doc.text(bullet, 20, y);
-            pdfQuoteBlock(quote, h.page_number, 20 + bw, { quoteBold: true });
-            if (h.note?.content) {
-              pdfNote(h.note.content);
-            } else {
-              y += 4;
-            }
-          }
-          y += 4;
-        }
-      } else if (view === 'page') {
-        for (const { page, items } of groupedByPage) {
-          pdfPageBreak();
-          doc.setFontSize(13);
-          doc.setFont(undefined, 'bold');
-          doc.text(`Page ${page}`, 20, y);
-          y += 8;
-          for (const h of items) {
-            const colorDisplay =
-              h.color_display_name ??
-              getColorDisplayName(
-                h.color,
-                document?.color_labels,
-                lensColors
-              );
-            const quote = normalizePdfText(h.highlighted_text || '');
-            pdfPageBreak();
-            doc.setFontSize(11);
-            doc.setFont(undefined, 'bold');
-            const prefix = `• ${colorDisplay}: `;
-            const prefixWidth = doc.getTextWidth(prefix);
-            doc.text(prefix, 20, y);
-            pdfQuoteBlock(quote, h.page_number, 20 + prefixWidth);
-            if (h.note?.content) {
-              pdfNote(h.note.content);
-            } else {
-              y += 4;
-            }
-          }
-          y += 4;
-        }
-      }
-      const blob = doc.output('blob');
-      saveAs(
-        blob,
-        `${(document?.filename || 'summary').replace(
-          /\.pdf$/i,
-          ''
-        )}-highlights.pdf`
+      const model = buildTypographicExportModel({
+        highlights: filteredHighlights,
+        document,
+        lensColors,
+        view,
+        analystEmail: '',
+      });
+      await downloadTypographicPdf(
+        model,
+        (document?.filename || 'summary').replace(/\.pdf$/i, '')
       );
-      setShowExport(false);
     } catch (err) {
       console.error('Public export pdf failed', err);
+    } finally {
+      setExportGenerating(false);
     }
-  }, [document?.filename, document?.color_labels, filteredHighlights, lensColors, view, groupedByTopic, groupedByPage]);
+  }, [document, filteredHighlights, lensColors, view]);
 
   const toggleFilter = useCallback((colorKey) => {
     setActiveFilters((prev) => {
@@ -655,47 +362,72 @@ export default function PublicSummaryPage() {
               </Link>
             )}
             <button
+              ref={exportMenuBtnRef}
               type="button"
-              onClick={() => setShowExport((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body}`}
+              disabled={exportGenerating}
+              aria-busy={exportGenerating}
+              aria-expanded={showExport}
+              aria-haspopup="menu"
+              onClick={() => {
+                if (exportGenerating) return;
+                setShowExport((v) => !v);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} disabled:opacity-70`}
             >
-              Export
-              <ChevronDown className="w-4 h-4" />
+              {exportGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  Export
+                  <ChevronDown className="w-4 h-4 shrink-0" />
+                </>
+              )}
             </button>
-            {showExport && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowExport(false)}
-                  aria-hidden="true"
-                />
-                <div
-                  className={`absolute right-0 top-full mt-1 z-20 py-1 rounded-lg border ${border.default} ${bg.surface} shadow-lg min-w-[160px]`}
-                >
-                  <button
-                    type="button"
-                    onClick={handleExportDocx}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+            {showExport &&
+              exportDropdownPos != null &&
+              createPortal(
+                <>
+                  <div
+                    className="fixed inset-0 z-[100]"
+                    onClick={() => setShowExport(false)}
+                    aria-hidden="true"
+                  />
+                  <div
+                    role="menu"
+                    className={`fixed z-[110] min-w-[160px] py-1 rounded-lg border ${border.default} ${bg.surface} shadow-lg`}
+                    style={{
+                      top: exportDropdownPos.top,
+                      right: exportDropdownPos.right,
+                    }}
                   >
-                    <FileText className="w-4 h-4" /> DOCX
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPdf}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
-                  >
-                    <FileDown className="w-4 h-4" /> PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportJSON}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
-                  >
-                    <Braces className="w-4 h-4" /> JSON
-                  </button>
-                </div>
-              </>
-            )}
+                    <button
+                      type="button"
+                      onClick={handleExportDocx}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <FileText className="w-4 h-4" /> DOCX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <FileDown className="w-4 h-4" /> PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportJSON}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <Braces className="w-4 h-4" /> JSON
+                    </button>
+                  </div>
+                </>,
+                window.document.body
+              )}
           </div>
         </div>
 
@@ -944,6 +676,7 @@ export default function PublicSummaryPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

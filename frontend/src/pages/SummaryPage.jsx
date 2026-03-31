@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { documentsAPI, lensesAPI, authAPI } from '../lib/api';
@@ -9,6 +10,11 @@ import {
   hexToRgba,
 } from '../lib/colors';
 import { normalizePdfText } from '../lib/pdfText';
+import {
+  buildTypographicExportModel,
+  downloadTypographicPdf,
+  downloadTypographicDocx,
+} from '../lib/exportTypographic';
 import { mergeUpdatedHighlight, optimisticSetHighlightNote } from '../lib/highlightQuery';
 import { pageWrapper, headerBar, btnPrimary, btnIcon, text, bg, border } from '../lib/theme';
 import {
@@ -164,6 +170,9 @@ export default function SummaryPage() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [copiedSelected, setCopiedSelected] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [exportDropdownPos, setExportDropdownPos] = useState(null);
+  const [exportGenerating, setExportGenerating] = useState(false);
+  const exportMenuBtnRef = useRef(null);
   const [pendingDeleteHighlight, setPendingDeleteHighlight] = useState(null);
   const [pendingDeleteSelected, setPendingDeleteSelected] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
@@ -461,394 +470,72 @@ export default function SummaryPage() {
     setShowExport(false);
   }, [document?.filename, document?.color_labels, filteredHighlights, lensColors]);
 
+  useLayoutEffect(() => {
+    if (!showExport) {
+      setExportDropdownPos(null);
+      return;
+    }
+    const el = exportMenuBtnRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setExportDropdownPos({
+        top: r.bottom + 4,
+        right: window.innerWidth - r.right,
+      });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [showExport]);
+
   const handleExportDocx = useCallback(async () => {
+    setShowExport(false);
+    setExportGenerating(true);
     try {
-      const { Document, Packer, Paragraph, TextRun, BorderStyle, AlignmentType, TabStopType } = await import('docx');
-      const { saveAs } = await import('file-saver');
-
-      const F = 'Arial';
-      const allHighlights = highlights || [];
-      const docName = document?.filename ?? 'Document Summary';
-      const analystEmail = currentUser?.email || '';
-      const dateStr = new Date().toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'long', year: 'numeric',
+      const model = buildTypographicExportModel({
+        highlights: highlights || [],
+        document,
+        lensColors,
+        view,
+        analystEmail: currentUser?.email || '',
       });
-
-      const totalComments = allHighlights.filter((h) => h.note?.content).length;
-
-      const quoteText = (raw) => `"${normalizePdfText(raw || '')}"`;
-
-      const textRuns = (text, opts = {}) => {
-        const lines = String(text).split(/\r?\n/);
-        return lines.map((line, idx) =>
-          new TextRun({
-            text: line,
-            ...(idx > 0 ? { break: 1 } : {}),
-            size: 22, font: F,
-            ...opts,
-          })
-        );
-      };
-
-      const pageRef = (pageNum) =>
-        new TextRun({ text: ` (p.${pageNum})`, italics: true, size: 22, font: F, color: '808080' });
-
-      const makeHeading = (text) =>
-        new Paragraph({
-          children: [new TextRun({ text, bold: true, size: 26, font: F })],
-          spacing: { before: 300, after: 100 },
-          border: { bottom: { color: 'CCCCCC', size: 6, space: 4, style: BorderStyle.SINGLE } },
-        });
-
-      const makeNote = (noteContent) =>
-        new Paragraph({
-          bullet: { level: 1 },
-          children: textRuns(normalizePdfText(noteContent), { italics: true }),
-          spacing: { after: 120 },
-        });
-
-      // --- Cover section ---
-      const children = [
-        new Paragraph({
-          children: [new TextRun({ text: docName.replace(/\.pdf$/i, ''), bold: true, size: 36, font: F })],
-          spacing: { after: 40 },
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: 'Summary', size: 22, font: F, color: '666666' })],
-          spacing: { after: 200 },
-        }),
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          tabStops: [{ type: TabStopType.LEFT, position: 4608 }],
-          children: [
-            new TextRun({ text: 'Date reviewed: ', size: 20, font: F, color: '666666' }),
-            new TextRun({ text: dateStr, size: 20, font: F }),
-            new TextRun({ text: '\t', size: 20, font: F }),
-            new TextRun({ text: 'Analyst: ', size: 20, font: F, color: '666666' }),
-            new TextRun({ text: analystEmail, size: 20, font: F }),
-          ],
-          spacing: { after: 60 },
-        }),
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          tabStops: [{ type: TabStopType.LEFT, position: 4608 }],
-          children: [
-            new TextRun({ text: 'Total annotations: ', size: 20, font: F, color: '666666' }),
-            new TextRun({ text: String(allHighlights.length), bold: true, size: 20, font: F }),
-            new TextRun({ text: '\t', size: 20, font: F }),
-            new TextRun({ text: 'Total comments: ', size: 20, font: F, color: '666666' }),
-            new TextRun({ text: String(totalComments), bold: true, size: 20, font: F }),
-          ],
-          spacing: { after: 120 },
-        }),
-      ];
-
-      children.push(
-        new Paragraph({
-          children: [],
-          spacing: { after: 80 },
-          border: { bottom: { color: 'CCCCCC', size: 6, space: 8, style: BorderStyle.SINGLE } },
-        })
+      await downloadTypographicDocx(
+        model,
+        (document?.filename || 'summary').replace(/\.pdf$/i, '')
       );
-
-      // --- Annotations ---
-      if (view === 'sequence') {
-        for (const h of allHighlights) {
-          const colorDisplay =
-            h.color_display_name ??
-            getColorDisplayName(h.color, document?.color_labels, lensColors);
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: `${colorDisplay}: `, bold: true, size: 22, font: F }),
-                ...textRuns(quoteText(h.highlighted_text)),
-                pageRef(h.page_number),
-              ],
-              spacing: { before: 120, after: h.note?.content ? 20 : 80 },
-            })
-          );
-          if (h.note?.content) {
-            children.push(
-              new Paragraph({
-                indent: { left: 360 },
-                children: textRuns(normalizePdfText(h.note.content), { italics: true }),
-                spacing: { after: 80 },
-              })
-            );
-          }
-        }
-      } else if (view === 'topic') {
-        const groups = {};
-        for (const h of allHighlights) {
-          const key = h.color ?? 'uncategorized';
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(h);
-        }
-        for (const [topicKey, items] of Object.entries(groups)) {
-          const name =
-            items[0]?.color_display_name ??
-            getColorDisplayName(topicKey, document?.color_labels, lensColors);
-          children.push(makeHeading(name));
-          for (const h of items) {
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [...textRuns(quoteText(h.highlighted_text)), pageRef(h.page_number)],
-                spacing: { after: h.note?.content ? 20 : 80 },
-              })
-            );
-            if (h.note?.content) children.push(makeNote(h.note.content));
-          }
-        }
-      } else if (view === 'page') {
-        const pageGroups = {};
-        for (const h of allHighlights) {
-          const key = h.page_number ?? 0;
-          if (!pageGroups[key]) pageGroups[key] = [];
-          pageGroups[key].push(h);
-        }
-        const pages = Object.keys(pageGroups).map((n) => parseInt(n, 10)).sort((a, b) => a - b);
-        for (const page of pages) {
-          const items = pageGroups[page];
-          children.push(makeHeading(`Page ${page}`));
-          for (const h of items) {
-            const colorDisplay =
-              h.color_display_name ??
-              getColorDisplayName(h.color, document?.color_labels, lensColors);
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({ text: `${colorDisplay}: `, bold: true, size: 22, font: F }),
-                  ...textRuns(quoteText(h.highlighted_text)),
-                  pageRef(h.page_number),
-                ],
-                spacing: { after: h.note?.content ? 20 : 80 },
-              })
-            );
-            if (h.note?.content) children.push(makeNote(h.note.content));
-          }
-        }
-      }
-
-      const doc = new Document({
-        sections: [{ children }],
-      });
-      const blob = await Packer.toBlob(doc);
-      saveAs(
-        blob,
-        `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.docx`
-      );
-      setShowExport(false);
     } catch (err) {
       console.error('Export docx failed', err);
+    } finally {
+      setExportGenerating(false);
     }
-  }, [document?.filename, document?.color_labels, highlights, lensColors, view, currentUser]);
+  }, [document, highlights, lensColors, view, currentUser?.email]);
 
   const handleExportPdf = useCallback(async () => {
+    setShowExport(false);
+    setExportGenerating(true);
     try {
-      const { jsPDF } = await import('jspdf');
-      const { saveAs } = await import('file-saver');
-      const doc = new jsPDF();
-      const allH = highlights || [];
-      const analystEmail = currentUser?.email || '';
-      const dateStr = new Date().toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'long', year: 'numeric',
+      const model = buildTypographicExportModel({
+        highlights: highlights || [],
+        document,
+        lensColors,
+        view,
+        analystEmail: currentUser?.email || '',
       });
-
-      const totalComments = allH.filter((h) => h.note?.content).length;
-
-      let y = 20;
-      doc.setFontSize(18);
-      doc.setFont(undefined, 'bold');
-      doc.text((document?.filename ?? 'Document Summary').replace(/\.pdf$/i, ''), 20, y);
-      y += 7;
-      doc.setFontSize(11);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(100);
-      doc.text('Summary', 20, y);
-      y += 10;
-
-      doc.setFontSize(10);
-      const metaPad = 1.2;
-      let xMeta = 20;
-      doc.setTextColor(100);
-      doc.setFont(undefined, 'normal');
-      const dateLbl = 'Date reviewed: ';
-      doc.text(dateLbl, xMeta, y);
-      xMeta += doc.getTextWidth(dateLbl) + metaPad;
-      doc.setTextColor(0);
-      doc.text(dateStr, xMeta, y);
-      xMeta += doc.getTextWidth(dateStr) + 5;
-      doc.setTextColor(100);
-      const analystLbl = 'Analyst: ';
-      doc.text(analystLbl, xMeta, y);
-      xMeta += doc.getTextWidth(analystLbl) + metaPad;
-      doc.setTextColor(0);
-      doc.text(analystEmail, xMeta, y);
-      y += 6;
-      xMeta = 20;
-      doc.setTextColor(100);
-      doc.setFont(undefined, 'normal');
-      const annLbl = 'Total annotations: ';
-      doc.text(annLbl, xMeta, y);
-      xMeta += doc.getTextWidth(annLbl) + metaPad;
-      doc.setTextColor(0);
-      doc.setFont(undefined, 'bold');
-      const annVal = String(allH.length);
-      doc.text(annVal, xMeta, y);
-      xMeta += doc.getTextWidth(annVal) + 5;
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(100);
-      const comLbl = 'Total comments: ';
-      doc.text(comLbl, xMeta, y);
-      xMeta += doc.getTextWidth(comLbl) + metaPad;
-      doc.setTextColor(0);
-      doc.setFont(undefined, 'bold');
-      doc.text(String(totalComments), xMeta, y);
-      doc.setFont(undefined, 'normal');
-      y += 8;
-
-      doc.setDrawColor(200);
-      doc.line(20, y, 190, y);
-      y += 8;
-      doc.setTextColor(0);
-
-      const PAGE_BOTTOM = 280;
-      const pdfPageBreak = () => { if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; } };
-
-      const pdfQuoteBlock = (quoteStr, pageNum, startX, opts = {}) => {
-        const quoteBold = opts.quoteBold === true;
-        const lineWidth = Math.max(20, 190 - startX);
-        doc.setFontSize(11);
-        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
-        doc.setTextColor(0);
-        const qText = `"${quoteStr}"`;
-        const qLines = doc.splitTextToSize(qText, lineWidth);
-        qLines.forEach((line) => {
-          if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; }
-          doc.text(line, startX, y);
-          y += 5;
-        });
-        doc.setFont(undefined, quoteBold ? 'bold' : 'normal');
-        const lastLineW = doc.getTextWidth(qLines[qLines.length - 1] || '');
-        doc.setFont(undefined, 'italic');
-        doc.setTextColor(128);
-        doc.text(` (p.${pageNum})`, startX + lastLineW, y - 5);
-        doc.setTextColor(0);
-        doc.setFont(undefined, 'normal');
-        y += 2;
-      };
-
-      const pdfNote = (noteContent) => {
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'italic');
-        doc.setTextColor(0);
-        const noteLines = doc.splitTextToSize(normalizePdfText(noteContent), 166);
-        noteLines.forEach((line) => {
-          if (y > PAGE_BOTTOM) { doc.addPage(); y = 20; }
-          doc.text(line, 24, y);
-          y += 5;
-        });
-        y += 4;
-        doc.setFont(undefined, 'normal');
-      };
-
-      if (view === 'sequence') {
-        for (const h of allH) {
-          const colorDisplay =
-            h.color_display_name ??
-            getColorDisplayName(h.color, document?.color_labels, lensColors);
-          const quote = normalizePdfText(h.highlighted_text || '');
-          pdfPageBreak();
-          doc.setFontSize(11);
-          doc.setFont(undefined, 'bold');
-          const categoryLabel = `${colorDisplay}: `;
-          const catWidth = doc.getTextWidth(categoryLabel);
-          doc.text(categoryLabel, 20, y);
-          pdfQuoteBlock(quote, h.page_number, 20 + catWidth);
-          if (h.note?.content) {
-            pdfNote(h.note.content);
-          } else {
-            y += 4;
-          }
-        }
-      } else if (view === 'topic') {
-        const groups = {};
-        for (const h of allH) {
-          const key = h.color ?? 'uncategorized';
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(h);
-        }
-        for (const [topicKey, items] of Object.entries(groups)) {
-          const name =
-            items[0]?.color_display_name ??
-            getColorDisplayName(topicKey, document?.color_labels, lensColors);
-          pdfPageBreak();
-          doc.setFontSize(13);
-          doc.setFont(undefined, 'bold');
-          doc.text(name, 20, y);
-          y += 8;
-          for (const h of items) {
-            const quote = normalizePdfText(h.highlighted_text || '');
-            pdfPageBreak();
-            doc.setFontSize(11);
-            doc.setFont(undefined, 'normal');
-            const bullet = '• ';
-            const bw = doc.getTextWidth(bullet);
-            doc.text(bullet, 20, y);
-            pdfQuoteBlock(quote, h.page_number, 20 + bw, { quoteBold: true });
-            if (h.note?.content) {
-              pdfNote(h.note.content);
-            } else {
-              y += 4;
-            }
-          }
-          y += 4;
-        }
-      } else if (view === 'page') {
-        const pageGroups = {};
-        for (const h of allH) {
-          const key = h.page_number ?? 0;
-          if (!pageGroups[key]) pageGroups[key] = [];
-          pageGroups[key].push(h);
-        }
-        const pages = Object.keys(pageGroups).map((n) => parseInt(n, 10)).sort((a, b) => a - b);
-        for (const page of pages) {
-          const items = pageGroups[page];
-          pdfPageBreak();
-          doc.setFontSize(13);
-          doc.setFont(undefined, 'bold');
-          doc.text(`Page ${page}`, 20, y);
-          y += 8;
-          for (const h of items) {
-            const colorDisplay =
-              h.color_display_name ??
-              getColorDisplayName(h.color, document?.color_labels, lensColors);
-            const quote = normalizePdfText(h.highlighted_text || '');
-            pdfPageBreak();
-            doc.setFontSize(11);
-            doc.setFont(undefined, 'bold');
-            const prefix = `• ${colorDisplay}: `;
-            const prefixWidth = doc.getTextWidth(prefix);
-            doc.text(prefix, 20, y);
-            pdfQuoteBlock(quote, h.page_number, 20 + prefixWidth);
-            if (h.note?.content) {
-              pdfNote(h.note.content);
-            } else {
-              y += 4;
-            }
-          }
-          y += 4;
-        }
-      }
-      const blob = doc.output('blob');
-      saveAs(blob, `${(document?.filename || 'summary').replace(/\.pdf$/i, '')}-highlights.pdf`);
-      setShowExport(false);
+      await downloadTypographicPdf(
+        model,
+        (document?.filename || 'summary').replace(/\.pdf$/i, '')
+      );
     } catch (err) {
       console.error('Export pdf failed', err);
+    } finally {
+      setExportGenerating(false);
     }
-  }, [document?.filename, document?.color_labels, highlights, lensColors, view, currentUser]);
+  }, [document, highlights, lensColors, view, currentUser?.email]);
 
   const handleStartEditNote = (h) => {
     setEditingNoteId(h.id);
@@ -1026,47 +713,72 @@ export default function SummaryPage() {
             </button>
           <div className="relative">
             <button
+              ref={exportMenuBtnRef}
               type="button"
-              onClick={() => setShowExport((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body}`}
+              disabled={exportGenerating}
+              aria-busy={exportGenerating}
+              aria-expanded={showExport}
+              aria-haspopup="menu"
+              onClick={() => {
+                if (exportGenerating) return;
+                setShowExport((v) => !v);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border ${border.default} ${bg.surface} hover:bg-slate-50 ${text.body} disabled:opacity-70`}
             >
-              Export
-              <ChevronDown className="w-4 h-4" />
+              {exportGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  Export
+                  <ChevronDown className="w-4 h-4 shrink-0" />
+                </>
+              )}
             </button>
-            {showExport && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowExport(false)}
-                  aria-hidden="true"
-                />
-                <div
-                  className={`absolute right-0 top-full mt-1 z-20 py-1 rounded-lg border ${border.default} ${bg.surface} shadow-lg min-w-[160px]`}
-                >
-                  <button
-                    type="button"
-                    onClick={handleExportDocx}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+            {showExport &&
+              exportDropdownPos != null &&
+              createPortal(
+                <>
+                  <div
+                    className="fixed inset-0 z-[100]"
+                    onClick={() => setShowExport(false)}
+                    aria-hidden="true"
+                  />
+                  <div
+                    role="menu"
+                    className={`fixed z-[110] min-w-[160px] py-1 rounded-lg border ${border.default} ${bg.surface} shadow-lg`}
+                    style={{
+                      top: exportDropdownPos.top,
+                      right: exportDropdownPos.right,
+                    }}
                   >
-                    <FileText className="w-4 h-4" /> DOCX
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPdf}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
-                  >
-                    <FileDown className="w-4 h-4" /> PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportJSON}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
-                  >
-                    <Braces className="w-4 h-4" /> JSON
-                  </button>
-                </div>
-              </>
-            )}
+                    <button
+                      type="button"
+                      onClick={handleExportDocx}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <FileText className="w-4 h-4" /> DOCX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <FileDown className="w-4 h-4" /> PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportJSON}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50"
+                    >
+                      <Braces className="w-4 h-4" /> JSON
+                    </button>
+                  </div>
+                </>,
+                window.document.body
+              )}
           </div>
           </div>
         </div>
@@ -1453,6 +1165,7 @@ export default function SummaryPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

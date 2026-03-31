@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Reserve space for the scrollbar so full-viewport overlays/modals don’t shift layout */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -17,6 +22,9 @@ select {
 button:disabled,
 select:disabled {
   cursor: not-allowed;
+}
+button:disabled[aria-busy='true'] {
+  cursor: wait;
 }
 
 #root {
